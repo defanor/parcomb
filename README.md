@@ -1,4 +1,4 @@
 parcomb
 =======
 
-parser combinators in Idris
+Playing with parser combinators in Idris.
