@@ -61,5 +61,5 @@ data pBits : Nat -> Type where
 
 instance Packable (pBits n) (List Bool) where
   ppack bl = case bl of
-    (mkpBits n l) => l
+    (mkpBits n l) => replicate (n - length l) False ++ l
   punpack l = (take n l, drop n l)
