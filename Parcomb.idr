@@ -27,7 +27,7 @@ mutual
 instance Alternative Parser where
   empty = MkParser $ \str => (Nothing, str)
   f <|> s = MkParser $ \str => case (parse f str) of
-    (Nothing, rest) => parse s str -- should it be rest or str here?
+    (Nothing, rest) => parse s str
     (Just x, rest) => (Just x, rest)
 
 fail : Parser a
