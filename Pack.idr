@@ -1,8 +1,5 @@
 -- Perl-style pack/unpack
 
--- let expr = ((mkpNat 3) .. (mkpNatLe 7) .. (mkpBits 3) .. (p $ mkpNat 5)) in munpack expr $ mpack expr (1,13,[True, False, True], 23)
--- (1, 13, [True, False, True], 23) : (Nat, Nat, List Bool, Nat)
-
 module Pack
 
 -- core
@@ -12,7 +9,7 @@ module Pack
 -- type out
 -- out - a user-friendly type, e.g. Nat or String
 class Packable inp out where
-  total ppack : inp -> List Bool
+  total ppack : inp -> Maybe (List Bool)
   total punpack : List Bool -> (out, List Bool)
 
 -- collecting all the types, user should only provide functions of
@@ -24,14 +21,18 @@ data Pack : (Type, Type) -> Type where
 infixr 3 ..
 
 -- actual pack
-total mpack : Pack (t1, t2) -> t2 -> List Bool
+total mpack : Pack (t1, t2) -> t2 -> Maybe (List Bool)
 mpack (p tc) o = ppack (tc o)
-mpack (tc .. pl) (v, vl) = ppack (tc v) ++ mpack pl vl
+mpack (tc .. pl) (v, vl) = do
+  this <- ppack (tc v)
+  rest <- mpack pl vl
+  return $ this ++ rest
 
 -- and unpack
 total munpack : Pack (t1, t2) -> List Bool -> t2
-munpack (p tc) l = fst (punpack l)
+munpack (p tc) l = let (r, rest) = (punpack l) in r
 munpack (tc .. pl) l = let (r, rest) = (punpack l) in (r, munpack pl rest)
+
 
 -- extensions
 
@@ -53,38 +54,44 @@ data pNat : Nat -> Type where
 
 instance Packable (pNat n) Nat where
   ppack mn = case mn of
-    (mkpNat n v) => natToBits v n
+    (mkpNat n v) => if S (log2 v) <= n
+                    then Just $ natToBits v n
+                    else Nothing
   punpack l = (bitsToNat (take n l) n, drop n l)
 
--- Nat, LE
+-- -- Nat, LE
 
 data pNatLe : Nat -> Type where
   mkpNatLe : (bits : Nat) -> Nat -> pNatLe bits
 
 instance Packable (pNatLe n) Nat where
   ppack mn = case mn of
-    (mkpNatLe n v) => reverse $ natToBits v n
+    (mkpNatLe n v) => if S (log2 v) <= n
+                      then Just $ reverse $ natToBits v n
+                      else Nothing
   punpack l = (bitsToNat (reverse $ take n l) n, drop n l)
 
--- Raw bits
+-- -- Raw bits
 
 data pBits : Nat -> Type where
   mkpBits : (bits : Nat) -> List Bool -> pBits bits
 
 instance Packable (pBits n) (List Bool) where
   ppack bl = case bl of
-    (mkpBits n l) => replicate (n - length l) False ++ l
+    (mkpBits n l) => if length l <= n
+                     then Just $ replicate (n - length l) False ++ l
+                     else Nothing
   punpack l = (take n l, drop n l)
 
--- Nat, unary
+-- -- Nat, unary
 
-data pNatUnary : Type where
-  mkpNatUnary : Nat -> pNatUnary
+-- data pNatUnary : Type where
+--   mkpNatUnary : Nat -> pNatUnary
 
-instance Packable pNatUnary Nat where
-  ppack (mkpNatUnary n) = replicate n True ++ [False]
-  punpack l = (n, drop (S n) l)
-    where n = length (takeWhile (== True) l)
+-- instance Packable pNatUnary Nat where
+--   ppack (mkpNatUnary n) = replicate n True ++ [False]
+--   punpack l = (n, drop (S n) l)
+--     where n = length (takeWhile (== True) l)
 
 
 

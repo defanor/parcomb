@@ -14,13 +14,14 @@ Toy parser combinators.
 Binary (`List Bool` for now, actually) pack/unpack, inspired by those
 of Perl. Uses the same structure definition for both directions.
 
-Examples:
+### Examples ###
 
-    λΠ> let expr = ((mkpNat 3) .. (mkpNatLe 7) .. (mkpBits 3) .. (p $ mkpNat 5)) in mpack expr (1,13,[True, False, True], 23)
-    [False, False, True, True, False, True, True, False, False, False, True, False, True, True, False, True, True, True] : List Bool
+    λΠ> let expr = ((mkpNat 2) .. (mkpBits 3) .. (mkpNatLe 5) .. (p $ mkpNat 8)) in mpack expr (15, [True, False, True], 22, 42)
+    Nothing : Maybe (List Bool)
+    
+    λΠ> let expr = ((mkpNat 2) .. (mkpBits 3) .. (mkpNatLe 5) .. (p $ mkpNat 8)) in mpack expr (2, [True, False, True], 22, 42) >>= Just . munpack expr
+    Just (2, [True, False, True], 22, 42) : Maybe (Nat, List Bool, Nat, Nat)
+    
+    λΠ> let expr = ((mkpNat 2) .. (mkpBits 3) .. (mkpNatLe 5) .. (p $ mkpNat 8)) in mpack expr (2, [True, False, True], 22, 42) >>= Just . munpack expr
+    Just (2, [True, False, True], 22, 42) : Maybe (Nat, List Bool, Nat, Nat)
 
-    λΠ> let expr = ((mkpNat 3) .. (mkpNatLe 7) .. (mkpBits 3) .. (p $ mkpNat 5)) in munpack expr $ mpack expr (1,13,[True, False, True], 23)
-    (1, 13, [True, False, True], 23) : (Nat, Nat, List Bool, Nat)
-
-    λΠ> let expr = ((mkpNat 3) .. (mkpNatLe 7) .. (mkpBits 3) .. (p $ mkpNat 5)) in munpack expr [False, False, True, True, False, True, True, False, False, False, True, False, True, True, False, True, True, True]
-    (1, 13, [True, False, True], 23) : (Nat, Nat, List Bool, Nat)
