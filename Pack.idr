@@ -10,14 +10,14 @@ module Pack
 -- out - a user-friendly type, e.g. Nat or String
 class Packable inp out where
   total ppack : inp -> Maybe (List Bool)
-  total punpack : List Bool -> (out, List Bool)
+  total punpack : List Bool -> Maybe (out, List Bool)
 
 -- collecting all the types, user should only provide functions of
 -- type (out -> inp), e.g. (mkpNat 3)
 data Pack : (Type, Type) -> Type where
   p : Packable i o => (o -> i) -> Pack (i, o)
   (..) : Packable i o => (o -> i) -> Pack (a, b) -> Pack ((i, a), (o, b))
-
+  
 infixr 3 ..
 
 -- actual pack
@@ -29,9 +29,18 @@ mpack (tc .. pl) (v, vl) = do
   return $ this ++ rest
 
 -- and unpack
-total munpack : Pack (t1, t2) -> List Bool -> t2
-munpack (p tc) l = let (r, rest) = (punpack l) in r
-munpack (tc .. pl) l = let (r, rest) = (punpack l) in (r, munpack pl rest)
+
+total munpack2 : Monad m => m = Maybe -> Pack (t1, t2) -> List Bool -> m t2
+munpack2 refl (p tc) l = do
+  r <- (punpack l)
+  return $ fst r
+munpack2 refl (tc .. pl) l = do
+  (r, rest) <- punpack l
+  next <- munpack2 refl pl rest
+  return (r, next)
+  
+total munpack : Pack (t1, t2) -> List Bool -> Maybe t2
+munpack = munpack2 refl
 
 
 -- extensions
@@ -57,9 +66,11 @@ instance Packable (pNat n) Nat where
     (mkpNat n v) => if S (log2 v) <= n
                     then Just $ natToBits v n
                     else Nothing
-  punpack l = (bitsToNat (take n l) n, drop n l)
+  punpack l = if n <= length l
+              then Just (bitsToNat (take n l) n, drop n l)
+              else Nothing
 
--- Nat, LE
+-- -- Nat, LE
 
 data pNatLe : Nat -> Type where
   mkpNatLe : (bits : Nat) -> Nat -> pNatLe bits
@@ -69,9 +80,11 @@ instance Packable (pNatLe n) Nat where
     (mkpNatLe n v) => if S (log2 v) <= n
                       then Just $ reverse $ natToBits v n
                       else Nothing
-  punpack l = (bitsToNat (reverse $ take n l) n, drop n l)
+  punpack l = if n <= length l
+              then Just (bitsToNat (reverse $ take n l) n, drop n l)
+              else Nothing
 
--- Raw bits
+-- -- Raw bits
 
 data pBits : Nat -> Type where
   mkpBits : (bits : Nat) -> List Bool -> pBits bits
@@ -81,33 +94,9 @@ instance Packable (pBits n) (List Bool) where
     (mkpBits n l) => if length l <= n
                      then Just $ replicate (n - length l) False ++ l
                      else Nothing
-  punpack l = (take n l, drop n l)
-  
-  
-data pmBits : Nat -> Type where
-  mkpmBits : (bits : Nat) -> Maybe (List Bool) -> pmBits bits
-
-instance Packable (pmBits n) (Maybe (List Bool)) where
-  ppack bl = case bl of
-    (mkpmBits n l) => case l of
-      Nothing => Nothing
-      (Just l) => if length l <= n
-                  then Just $ replicate (n - length l) False ++ l
-                  else Nothing
-  punpack l = if n < length l
-              then (Just $ take n l, drop n l)
-              else (Nothing, [])
-
-
--- -- Nat, unary
-
--- data pNatUnary : Type where
---   mkpNatUnary : Nat -> pNatUnary
-
--- instance Packable pNatUnary Nat where
---   ppack (mkpNatUnary n) = replicate n True ++ [False]
---   punpack l = (n, drop (S n) l)
---     where n = length (takeWhile (== True) l)
+  punpack l = if n <= length l
+              then Just (take n l, drop n l)
+              else Nothing
 
 
 
