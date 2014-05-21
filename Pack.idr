@@ -1,21 +1,37 @@
+-- Perl-style pack/unpack
+
+-- let expr = ((mkpNat 3) .. (mkpNatLe 7) .. (mkpBits 3) .. (p $ mkpNat 5)) in munpack expr $ mpack expr (1,13,[True, False, True], 23)
+-- (1, 13, [True, False, True], 23) : (Nat, Nat, List Bool, Nat)
+
 module Pack
 
 -- core
 
+-- inp - a parsing-oriented type, i.e. including bits count or similar
+-- information; it's constructors should accept a final argument of
+-- type out
+-- out - a user-friendly type, e.g. Nat or String
 class Packable inp out where
   total ppack : inp -> List Bool
   total punpack : List Bool -> (out, List Bool)
 
+-- class Packable i o => VerifiedPackable i o where
+-- TODO
+
+-- collecting all the types, user should only provide functions of
+-- type (out -> inp), e.g. (mkpNat 3)
 data Pack : (Type, Type) -> Type where
   p : Packable i o => (o -> i) -> Pack (i, o)
   (..) : Packable i o => (o -> i) -> Pack (a, b) -> Pack ((i, a), (o, b))
 
 infixr 3 ..
 
+-- actual pack
 total mpack : Pack (t1, t2) -> t2 -> List Bool
-mpack (p tc) i = ppack (tc i)
+mpack (p tc) o = ppack (tc o)
 mpack (tc .. pl) (v, vl) = ppack (tc v) ++ mpack pl vl
 
+-- and unpack
 total munpack : Pack (t1, t2) -> List Bool -> t2
 munpack (p tc) l = fst (punpack l)
 munpack (tc .. pl) l = let (r, rest) = (punpack l) in (r, munpack pl rest)
@@ -63,3 +79,4 @@ instance Packable (pBits n) (List Bool) where
   ppack bl = case bl of
     (mkpBits n l) => replicate (n - length l) False ++ l
   punpack l = (take n l, drop n l)
+
