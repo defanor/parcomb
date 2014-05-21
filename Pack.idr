@@ -14,14 +14,14 @@ class Packable inp out where
 
 -- collecting all the types, user should only provide functions of
 -- type (out -> inp), e.g. (mkpNat 3)
-data Pack : (Type, Type) -> Type where
-  p : Packable i o => (o -> i) -> Pack (i, o)
-  (..) : Packable i o => (o -> i) -> Pack (a, b) -> Pack ((i, a), (o, b))
+data Pack : Type -> Type -> Type where
+  p : Packable i o => (o -> i) -> Pack i o
+  (..) : Packable i o => (o -> i) -> Pack a b -> Pack (i, a) (o, b)
   
 infixr 3 ..
 
 -- actual pack
-total mpack : Pack (t1, t2) -> t2 -> Maybe (List Bool)
+total mpack : Pack t1 t2 -> t2 -> Maybe (List Bool)
 mpack (p tc) o = ppack (tc o)
 mpack (tc .. pl) (v, vl) = do
   this <- ppack (tc v)
@@ -30,17 +30,13 @@ mpack (tc .. pl) (v, vl) = do
 
 -- and unpack
 
-total munpack2 : Monad m => m = Maybe -> Pack (t1, t2) -> List Bool -> m t2
-munpack2 refl (p tc) l = do
-  r <- (punpack l)
-  return $ fst r
-munpack2 refl (tc .. pl) l = do
+total munpack : Pack t1 t2 -> List Bool -> Maybe t2
+munpack (p tc) l = (punpack l) >>= Just . fst
+munpack (tc .. pl) l = do
   (r, rest) <- punpack l
-  next <- munpack2 refl pl rest
+  next <- munpack pl rest
   return (r, next)
-  
-total munpack : Pack (t1, t2) -> List Bool -> Maybe t2
-munpack = munpack2 refl
+
 
 
 -- extensions
