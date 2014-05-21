@@ -59,7 +59,7 @@ instance Packable (pNat n) Nat where
                     else Nothing
   punpack l = (bitsToNat (take n l) n, drop n l)
 
--- -- Nat, LE
+-- Nat, LE
 
 data pNatLe : Nat -> Type where
   mkpNatLe : (bits : Nat) -> Nat -> pNatLe bits
@@ -71,7 +71,7 @@ instance Packable (pNatLe n) Nat where
                       else Nothing
   punpack l = (bitsToNat (reverse $ take n l) n, drop n l)
 
--- -- Raw bits
+-- Raw bits
 
 data pBits : Nat -> Type where
   mkpBits : (bits : Nat) -> List Bool -> pBits bits
@@ -82,6 +82,22 @@ instance Packable (pBits n) (List Bool) where
                      then Just $ replicate (n - length l) False ++ l
                      else Nothing
   punpack l = (take n l, drop n l)
+  
+  
+data pmBits : Nat -> Type where
+  mkpmBits : (bits : Nat) -> Maybe (List Bool) -> pmBits bits
+
+instance Packable (pmBits n) (Maybe (List Bool)) where
+  ppack bl = case bl of
+    (mkpmBits n l) => case l of
+      Nothing => Nothing
+      (Just l) => if length l <= n
+                  then Just $ replicate (n - length l) False ++ l
+                  else Nothing
+  punpack l = if n < length l
+              then (Just $ take n l, drop n l)
+              else (Nothing, [])
+
 
 -- -- Nat, unary
 
