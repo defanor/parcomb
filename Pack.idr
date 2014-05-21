@@ -15,9 +15,6 @@ class Packable inp out where
   total ppack : inp -> List Bool
   total punpack : List Bool -> (out, List Bool)
 
--- class Packable i o => VerifiedPackable i o where
--- TODO
-
 -- collecting all the types, user should only provide functions of
 -- type (out -> inp), e.g. (mkpNat 3)
 data Pack : (Type, Type) -> Type where
@@ -35,7 +32,6 @@ mpack (tc .. pl) (v, vl) = ppack (tc v) ++ mpack pl vl
 total munpack : Pack (t1, t2) -> List Bool -> t2
 munpack (p tc) l = fst (punpack l)
 munpack (tc .. pl) l = let (r, rest) = (punpack l) in (r, munpack pl rest)
-
 
 -- extensions
 
@@ -80,3 +76,28 @@ instance Packable (pBits n) (List Bool) where
     (mkpBits n l) => replicate (n - length l) False ++ l
   punpack l = (take n l, drop n l)
 
+-- Nat, unary
+
+data pNatUnary : Type where
+  mkpNatUnary : Nat -> pNatUnary
+
+instance Packable pNatUnary Nat where
+  ppack (mkpNatUnary n) = replicate n True ++ [False]
+  punpack l = (n, drop (S n) l)
+    where n = length (takeWhile (== True) l)
+
+
+
+-- VerifiedPackable: commented out for now, simple Packable should be
+-- refined first
+
+-- class Packable i o => VerifiedPackable i o (f : o -> i) where
+--   v1 : (outv : o) -> fst (punpack {inp=i} {out=o} (ppack (f outv))) = outv
+
+-- data vPack : (Type, Type) -> Type where
+--   vp : VerifiedPackable i o f => (o -> i) -> (o -> i) = f -> vPack (i, o)
+--   (...) : VerifiedPackable i o f => (o -> i) -> (o -> i) = f -> vPack (a, b) -> vPack ((i, a), (o, b))
+
+-- instance VerifiedPackable pNatUnary Nat mkpNatUnary where
+--   v1 Z = refl
+--   v1 (S k) = cong {f=S} ?v1k
