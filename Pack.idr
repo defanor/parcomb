@@ -87,8 +87,8 @@ data pBits : Nat -> Type where
 
 instance Packable (pBits n) (List Bool) where
   ppack bl = case bl of
-    (mkpBits n l) => if length l <= n
-                     then Just $ replicate (n - length l) False ++ l
+    (mkpBits n l) => if length l == n
+                     then Just $ l
                      else Nothing
   punpack l = if n <= length l
               then Just (take n l, drop n l)
@@ -96,16 +96,30 @@ instance Packable (pBits n) (List Bool) where
 
 
 
--- VerifiedPackable: commented out for now, simple Packable should be
--- refined first
+-- Verified Packable
 
--- class Packable i o => VerifiedPackable i o (f : o -> i) where
---   v1 : (outv : o) -> fst (punpack {inp=i} {out=o} (ppack (f outv))) = outv
+data T = tt
 
--- data vPack : (Type, Type) -> Type where
---   vp : VerifiedPackable i o f => (o -> i) -> (o -> i) = f -> vPack (i, o)
---   (...) : VerifiedPackable i o f => (o -> i) -> (o -> i) = f -> vPack (a, b) -> vPack ((i, a), (o, b))
+class Packable i o => VerifiedPackable i o (f : o -> i) where
+  total v1 : (outv : o) -> maybe T (\x => x = (outv, List.Nil {a=Bool})) (ppack (f outv) >>= punpack {inp=i} {out=o})
 
--- instance VerifiedPackable pNatUnary Nat mkpNatUnary where
---   v1 Z = refl
---   v1 (S k) = cong {f=S} ?v1k
+
+vp_pbits_lemma2 : (xs : List Bool) -> (m : Nat) -> (n : Nat) -> maybe T (\x2 => x2 = (x :: xs, List.Nil {a=Bool}))
+  (if (n <= (S (length xs))) then (Just (take n (x :: xs), drop n (x :: xs))) else Nothing)
+vp_pbits_lemma2 xs m n with (n <= (S (length xs)))
+  | True = ?c0 -- need to get (length xs == m) here, but it's lost on "with"
+  | False = tt
+
+vp_pbits_lemma : (xs : List Bool) -> (m : Nat) -> maybe T (\x2 => x2 = (x :: xs, List.Nil {a=Bool}))
+  ((if (length xs == m) then ((Just (x :: xs))) else Nothing) >>= punpack {inp=pBits n} {out=List Bool})
+vp_pbits_lemma xs m with (length xs == m)
+  | False = tt
+  | True = ?c1           
+
+instance VerifiedPackable (pBits n) (List Bool) (mkpBits n) where
+  v1 [] = case n of
+    Z => refl
+    (S m) => tt
+  v1 (x :: xs) = case n of
+    Z => tt
+    (S m) => ?c2
