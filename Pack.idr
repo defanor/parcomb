@@ -66,7 +66,7 @@ instance Packable (pNat n) Nat where
               then Just (bitsToNat (take n l) n, drop n l)
               else Nothing
 
--- -- Nat, LE
+-- Nat, LE
 
 data pNatLe : Nat -> Type where
   mkpNatLe : (bits : Nat) -> Nat -> pNatLe bits
@@ -80,7 +80,7 @@ instance Packable (pNatLe n) Nat where
               then Just (bitsToNat (reverse $ take n l) n, drop n l)
               else Nothing
 
--- -- Raw bits
+-- Raw bits
 
 data pBits : Nat -> Type where
   mkpBits : (bits : Nat) -> List Bool -> pBits bits
@@ -103,6 +103,13 @@ data T = tt
 class Packable i o => VerifiedPackable i o (f : o -> i) where
   total v1 : (outv : o) -> maybe T (\x => x = (outv, List.Nil {a=Bool})) (ppack (f outv) >>= punpack {inp=i} {out=o})
 
+
+-- should be useful if i'll be able to pass ((length xs == m) = True)
+total nat_eqb_eq : (x : Nat) -> (y : Nat) -> (x == y = True) -> (x = y)
+nat_eqb_eq Z Z p = refl
+nat_eqb_eq Z (S y) p = FalseElim (trueNotFalse (sym p))
+nat_eqb_eq (S x) Z p = FalseElim (trueNotFalse (sym p))
+nat_eqb_eq (S x) (S y) p = cong {f=S} (nat_eqb_eq x y p)
 
 vp_pbits_lemma2 : (xs : List Bool) -> (m : Nat) -> (n : Nat) -> maybe T (\x2 => x2 = (x :: xs, List.Nil {a=Bool}))
   (if (n <= (S (length xs))) then (Just (take n (x :: xs), drop n (x :: xs))) else Nothing)
