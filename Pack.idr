@@ -102,8 +102,6 @@ instance Packable (pBits n) (List Bool) where
 
 
 -- Verified pBits
--- lots of hacks here, to emulate "inspect"/"destruct as"
--- and some general mess too
 
 total nat_eqb_eq : (x : Nat) -> (y : Nat) -> (x == y = True) -> (x = y)
 nat_eqb_eq Z Z p = refl
