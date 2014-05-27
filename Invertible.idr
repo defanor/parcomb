@@ -19,10 +19,10 @@ unapply : PartIso α β -> β -> Maybe α
 unapply = Invertible.apply . inverse
 
 class ProductFunctor (f : Type -> Type -> Type) where
-  pf : f α γ -> f β γ -> f (α, β) γ
+  pf : f α γ -> Lazy (f β γ) -> Lazy (f (α, β) γ)
 
 class Alternative (f : Type -> Type -> Type) where
-  alt : f α γ -> f α γ -> f α γ
+  alt : f α γ -> Lazy (f α γ) -> f α γ
   empty : f α γ
 
 class (PartIsoFunctor δ, ProductFunctor δ, Invertible.Alternative δ) => Syntax (δ : Type -> Type -> Type) γ where
@@ -35,21 +35,39 @@ class (PartIsoFunctor δ, ProductFunctor δ, Invertible.Alternative δ) => Synta
 
 
 
-nil : PartIso () (Vect 0 α)
-nil = MkPartIso (const . Just $ Vect.Nil {a=α})
+nilv : PartIso () (Vect 0 α)
+nilv = MkPartIso (const . Just $ Vect.Nil {a=α})
                 (\xs => case xs of
                    [] => Just ()
                    _ => Nothing)
 
-cons : PartIso (α, Vect n α) (Vect (S n) α)
-cons = MkPartIso c1 c2
+consv : PartIso (α, Vect n α) (Vect (S n) α)
+consv = MkPartIso c1 c2
   where c1 (x, xs) = Just (x :: xs)
         c2 (x :: xs) = Just (x, xs)
 
-many : Syntax δ γ => {n : Nat} -> δ α γ -> δ (Vect n α) γ
-many {n} p with (n)
-  | Z = (nil <$> (Invertible.pure ()))
-  | (S k) = (cons <$> (p `pf` (many p)))
+times : Syntax δ γ => {n : Nat} -> δ α γ -> δ (Vect n α) γ
+times {n} p with (n)
+  | Z = (nilv <$> (Invertible.pure ()))
+  | (S k) = (consv <$> (p `pf` (times p)))
+
+
+nil : PartIso () (List α)
+nil = MkPartIso (const . Just $ List.Nil {a=α})
+                (\xs => case xs of
+                   [] => Just ()
+                   _ => Nothing)
+
+cons : PartIso (α, List α) (List α)
+cons = MkPartIso c1 c2
+  where c1 (x, xs) = Just (x :: xs)
+        c2 [] = Nothing
+        c2 (x :: xs) = Just (x, xs)
+
+many : Syntax δ γ => (max : Nat) -> δ α γ -> δ (List α) γ
+many Z _ = nil <$> pure ()
+many (S m) p = nil <$> pure ()
+      `alt` cons <$> (pf p (Delay (many m p)))
 
 
 data Parser α γ = MkParser (List γ -> List (α, List γ))
@@ -108,7 +126,7 @@ instance Syntax Printer γ where
 
 main : IO ()
 main = do
-  putStrLn (show $ Invertible.print (many $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, True])
-  putStrLn (show $ Invertible.parse (many {n=2} $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, False, False])
-  putStrLn (show $ Invertible.print (many $ (Invertible.token {γ=Bool})) [True, False])
-  putStrLn (show $ Invertible.parse (many {n=3} $ (Invertible.token {γ=Bool})) [True, False, True, False])
+  putStrLn (show $ Invertible.print (times $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, True])
+  putStrLn (show $ Invertible.parse (times {n=2} $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, False, False])
+  putStrLn (show $ Invertible.print (times $ (Invertible.token {γ=Bool})) [True, False])
+  putStrLn (show $ Invertible.parse (times {n=3} $ (Invertible.token {γ=Bool})) [True, False, True, False])
