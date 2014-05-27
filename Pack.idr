@@ -147,6 +147,6 @@ instance VerifiedPackable (pBits n) (List Bool) (mkpBits n) where
               sml = cong {f=S} $ sym (nat_eqb_eq (length xs) m eq1)
               cst_lemma2 : maybe T (\x2 => x2 = (x :: xs, List.Nil {a=Bool})) (Just (x :: (take m xs), drop m xs))
               cst_lemma2 = pair (take_len (S m) (x :: xs) sml)
-                                  (drop_len (S m) (x :: xs) sml)
+                                (drop_len (S m) (x :: xs) sml)
               cst_lemma = rewrite eq1 in cst_lemma2
       | match False {eq=eq1} = rewrite eq in (rewrite eq1 in tt)
