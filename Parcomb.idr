@@ -1,6 +1,10 @@
 module Parcomb
 
-data Parser a = MkParser (String -> (Maybe a, String))
+%hide Prelude.Monad.(>>=)
+%hide Prelude.Monad.flatten
+%hide Prelude.Monad.return
+
+data Parser a = MkParser (Lazy (String -> (Maybe a, String)))
 
 parse : Parser a -> String -> (Maybe a, String)
 parse p = case p of
@@ -8,7 +12,18 @@ parse p = case p of
   
 class Applicative f => LazyAlternative (f : Type -> Type) where
     empty : f a
-    alt : f a -> Lazy (f a) -> f a
+    alt : Lazy (f a) -> Lazy (f a) -> f a
+
+class Applicative m => LazyMonad (m : Type -> Type) where
+    (>>=)  : Lazy (m a) -> Lazy (a -> m b) -> m b
+
+
+flatten : LazyMonad m => Lazy (m (m a)) -> m a
+flatten a = a >>= id
+
+return : LazyMonad m => a -> m a
+return = pure
+
 
 instance Functor Parser where
   map f p = MkParser $ \str => case (parse p str) of
@@ -23,10 +38,10 @@ mutual
       f <- mf
       return (f p)
 
-  instance Monad Parser where
+  instance LazyMonad Parser where
     p >>= g = MkParser $ \str => case (parse p str) of
       (Nothing, rest) => (Nothing, rest)
-      (Just x, rest) => parse (g x) rest
+      (Just x, rest) => parse ((Force g) x) rest
       
 instance LazyAlternative Parser where
   empty = MkParser $ \str => (Nothing, str)
@@ -63,14 +78,22 @@ where c = strHead str
       cs = strTail str
 
 
--- turns out this leads to stack overflow too; should be fixed
-mutual
-  many : Parser a -> (Parser (List a))
-  many p = alt (some p) (return [])
+cons : Parser a -> Lazy (Parser (List a)) -> (Parser (List a))
+cons p pl = do
+  a <- p
+  r <- pl
+  return $ a :: r
 
-  some : Parser a -> (Parser (List a))
-  some p = do
-    a <- p
-    as <- many p
-    return (a :: as)
+many : Parser a -> (Parser (List a))
+many p  = alt (cons p (many p)) (return [])
+
+-- mutual
+--   many : Parser a -> (Parser (List a))
+--   many p = alt (some p) (return [])
+
+--   some : Parser a -> (Parser (List a))
+--   some p = do
+--     a <- p
+--     as <- many p
+--     return (a :: as)
 
