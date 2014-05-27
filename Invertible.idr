@@ -75,23 +75,23 @@ namespace Colist
     Nil : Colist a
     (::) : a -> Colist a -> Colist a
     
-nil' : PartIso () (Colist α)
-nil' = MkPartIso (const . Just $ Colist.Nil {a=α})
-                (\xs => case xs of
-                   [] => Just ()
-                   _ => Nothing)
+-- nil' : PartIso () (Colist α)
+-- nil' = MkPartIso (const . Just $ Colist.Nil {a=α})
+--                 (\xs => case xs of
+--                    [] => Just ()
+--                    _ => Nothing)
 
-cons' : PartIso (α, Colist α) (Colist α)
-cons' = MkPartIso c1 c2
-  where c1 (x, xs) = Just (x :: xs)
-        c2 [] = Nothing
-        c2 (x :: xs) = Just (x, xs)
+-- cons' : PartIso (α, Colist α) (Colist α)
+-- cons' = MkPartIso c1 c2
+--   where c1 (x, xs) = Just (x :: xs)
+--         c2 [] = Nothing
+--         c2 (x :: xs) = Just (x, xs)
 
--- this leads to stack overflow, most likely lazyness should be added
--- somehow
-partial many' : Syntax δ γ => δ α γ -> δ (Colist α) γ
-many' p =  nil' <$> pure ()
-    `alt` cons' <$> (pf p $ many' p)
+-- -- this leads to stack overflow, most likely lazyness should be added
+-- -- somehow
+-- partial many' : Syntax δ γ => δ α γ -> δ (Colist α) γ
+-- many' p =  nil' <$> pure ()
+--     `alt` cons' <$> (pf p $ many' p)
 
 
 
@@ -153,5 +153,5 @@ instance Syntax Printer γ where
 -- Invertible.parse (times {n=2} $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, False, False]
 -- Invertible.print (times $ (Invertible.token {γ=Bool})) [True, False]
 -- Invertible.parse (times {n=3} $ (Invertible.token {γ=Bool})) [True, False, True, False]
--- Invertible.print (many 2 $ pf (Invertible.token {γ=Bool}) (Invertible.pure {α=Bool} {γ=Bool} True)) [True, True, False, True]
+-- Invertible.print (many 2 $ pf (Invertible.token {γ=Bool}) (Invertible.pure {α=Bool} {γ=Bool} True)) [(True, True), (False, True)]
 -- Invertible.parse (many 3 $ pf (Invertible.token {γ=Bool}) (Invertible.pure {α=Bool} {γ=Bool} True)) [True, False]
