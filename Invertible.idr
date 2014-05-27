@@ -19,10 +19,10 @@ unapply : PartIso α β -> β -> Maybe α
 unapply = Invertible.apply . inverse
 
 class ProductFunctor (f : Type -> Type -> Type) where
-  pf : f α γ -> Lazy (f β γ) -> Lazy (f (α, β) γ)
+  pf : f α γ -> f β γ -> f (α, β) γ
 
 class Alternative (f : Type -> Type -> Type) where
-  alt : f α γ -> Lazy (f α γ) -> f α γ
+  alt : f α γ -> f α γ -> f α γ
   empty : f α γ
 
 class (PartIsoFunctor δ, ProductFunctor δ, Invertible.Alternative δ) => Syntax (δ : Type -> Type -> Type) γ where
@@ -67,7 +67,32 @@ cons = MkPartIso c1 c2
 many : Syntax δ γ => (max : Nat) -> δ α γ -> δ (List α) γ
 many Z _ = nil <$> pure ()
 many (S m) p = nil <$> pure ()
-      `alt` cons <$> (pf p (Delay (many m p)))
+        `alt` cons <$> (pf p (many m p))
+
+
+namespace Colist
+  codata Colist : (a : Type) -> Type where
+    Nil : Colist a
+    (::) : a -> Colist a -> Colist a
+    
+nil' : PartIso () (Colist α)
+nil' = MkPartIso (const . Just $ Colist.Nil {a=α})
+                (\xs => case xs of
+                   [] => Just ()
+                   _ => Nothing)
+
+cons' : PartIso (α, Colist α) (Colist α)
+cons' = MkPartIso c1 c2
+  where c1 (x, xs) = Just (x :: xs)
+        c2 [] = Nothing
+        c2 (x :: xs) = Just (x, xs)
+
+-- this leads to stack overflow, most likely lazyness should be added
+-- somehow
+partial many' : Syntax δ γ => δ α γ -> δ (Colist α) γ
+many' p =  nil' <$> pure ()
+    `alt` cons' <$> (pf p $ many' p)
+
 
 
 data Parser α γ = MkParser (List γ -> List (α, List γ))
@@ -124,9 +149,9 @@ instance Syntax Printer γ where
   token = MkPrinter (\t => Just [t])
 
 
-main : IO ()
-main = do
-  putStrLn (show $ Invertible.print (times $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, True])
-  putStrLn (show $ Invertible.parse (times {n=2} $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, False, False])
-  putStrLn (show $ Invertible.print (times $ (Invertible.token {γ=Bool})) [True, False])
-  putStrLn (show $ Invertible.parse (times {n=3} $ (Invertible.token {γ=Bool})) [True, False, True, False])
+-- Invertible.print (times $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, True]
+-- Invertible.parse (times {n=2} $ (Invertible.pure {α=Bool} {γ=Bool} True)) [True, False, False]
+-- Invertible.print (times $ (Invertible.token {γ=Bool})) [True, False]
+-- Invertible.parse (times {n=3} $ (Invertible.token {γ=Bool})) [True, False, True, False]
+-- Invertible.print (many 2 $ pf (Invertible.token {γ=Bool}) (Invertible.pure {α=Bool} {γ=Bool} True)) [True, True, False, True]
+-- Invertible.parse (many 3 $ pf (Invertible.token {γ=Bool}) (Invertible.pure {α=Bool} {γ=Bool} True)) [True, False]
