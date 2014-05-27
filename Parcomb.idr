@@ -75,4 +75,4 @@ mutual
 
 namespace Main
   main : IO ()
-  main = putStrLn . show $ parse (some $ char 'p') "pppa"
+  main = putStrLn . show $ parse (many $ char 'p') "pppa"
