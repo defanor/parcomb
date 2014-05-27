@@ -70,31 +70,6 @@ many (S m) p = nil <$> pure ()
         `alt` cons <$> (pf p (many m p))
 
 
--- namespace Colist
---   codata Colist : (a : Type) -> Type where
---     Nil : Colist a
---     (::) : a -> Colist a -> Colist a
-    
--- nil' : PartIso () (Colist α)
--- nil' = MkPartIso (const . Just $ Colist.Nil {a=α})
---                 (\xs => case xs of
---                    [] => Just ()
---                    _ => Nothing)
-
--- cons' : PartIso (α, Colist α) (Colist α)
--- cons' = MkPartIso c1 c2
---   where c1 (x, xs) = Just (x :: xs)
---         c2 [] = Nothing
---         c2 (x :: xs) = Just (x, xs)
-
--- -- this leads to stack overflow, most likely laziness should be added
--- -- somehow
--- partial many' : Syntax δ γ => δ α γ -> δ (Colist α) γ
--- many' p =  nil' <$> pure ()
---     `alt` cons' <$> (pf p $ many' p)
-
-
-
 data Parser α γ = MkParser (List γ -> List (α, List γ))
 
 
