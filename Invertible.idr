@@ -19,7 +19,7 @@ unapply : PartIso α β -> β -> Maybe α
 unapply = Invertible.apply . inverse
 
 class ProductFunctor (f : Type -> Type -> Type) where
-  (<*>) : f α γ -> Lazy (f β γ) -> Lazy (f (α, β) γ)
+  pf : f α γ -> f β γ -> f (α, β) γ
 
 class Alternative (f : Type -> Type -> Type) where
   alt : f α γ -> f α γ -> f α γ
@@ -49,7 +49,7 @@ cons = MkPartIso c1 c2
 many : Syntax δ γ => {n : Nat} -> δ α γ -> δ (Vect n α) γ
 many {n} p with (n)
   | Z = (nil <$> (Invertible.pure ()))
-  | (S k) = (cons <$> (p <*> (many p)))
+  | (S k) = (cons <$> (p `pf` (many p)))
 
 
 data Parser α γ = MkParser (List γ -> List (α, List γ))
@@ -64,7 +64,7 @@ instance PartIsoFunctor Parser where
                                          , y <- toList $ apply iso x])
 
 instance ProductFunctor Parser where
-  (MkParser p) <*> (MkParser q) = MkParser (\s => [ ((x,y), s )
+  pf (MkParser p) (MkParser q) = MkParser (\s => [ ((x,y), s )
                                                   | (x, s ) <- p s
                                                   , (y, s ) <- q s])
 
@@ -89,7 +89,7 @@ instance PartIsoFunctor Printer where
   iso <$> (MkPrinter p) = MkPrinter (\b => unapply iso b >>= p)
 
 instance ProductFunctor Printer where
-  (MkPrinter p) <*> (MkPrinter q) = MkPrinter (\(x, y) => Just (++) <$> (p x) <$> (q y))
+  pf (MkPrinter p) (MkPrinter q) = MkPrinter (\(x, y) => Just (++) <$> (p x) <$> (q y))
 
 instance Invertible.Alternative Printer where
   alt (MkPrinter p) (MkPrinter q) = MkPrinter $ \s =>
