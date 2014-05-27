@@ -70,10 +70,10 @@ many (S m) p = nil <$> pure ()
         `alt` cons <$> (pf p (many m p))
 
 
-namespace Colist
-  codata Colist : (a : Type) -> Type where
-    Nil : Colist a
-    (::) : a -> Colist a -> Colist a
+-- namespace Colist
+--   codata Colist : (a : Type) -> Type where
+--     Nil : Colist a
+--     (::) : a -> Colist a -> Colist a
     
 -- nil' : PartIso () (Colist α)
 -- nil' = MkPartIso (const . Just $ Colist.Nil {a=α})
@@ -108,8 +108,8 @@ instance PartIsoFunctor Parser where
 
 instance ProductFunctor Parser where
   pf (MkParser p) (MkParser q) = MkParser (\s => [ ((x,y), s )
-                                                  | (x, s ) <- p s
-                                                  , (y, s ) <- q s])
+                                                  | (x, s') <- p s
+                                                  , (y, s'') <- q s'])
 
 instance Invertible.Alternative Parser where
   alt (MkParser p) (MkParser q) = MkParser (\s => (p s) ++ (q s))
