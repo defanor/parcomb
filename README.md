@@ -39,6 +39,7 @@ An attempt to rewrite
 in Idris, and to try to make it usable afterwards.
 
 The following changes were made:
+
 1. `String` was replaced with `List γ` in order to make it more general
 2. `many` is implemented using `Vect` now, which is not that nice;
    probably it'll be better to use colists everywhere.
