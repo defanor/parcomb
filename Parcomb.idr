@@ -73,3 +73,6 @@ mutual
     as <- many p
     return (a :: as)
 
+namespace Main
+  main : IO ()
+  main = putStrLn . show $ parse (some $ char 'p') "pppa"
