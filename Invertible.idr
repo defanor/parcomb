@@ -107,7 +107,7 @@ instance PartIsoFunctor Parser where
                                          , y <- toList $ apply iso x])
 
 instance ProductFunctor Parser where
-  pf (MkParser p) (MkParser q) = MkParser (\s => [ ((x,y), s )
+  pf (MkParser p) (MkParser q) = MkParser (\s => [ ((x,y), s'')
                                                   | (x, s') <- p s
                                                   , (y, s'') <- q s'])
 
