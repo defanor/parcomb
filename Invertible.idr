@@ -87,7 +87,7 @@ many (S m) p = nil <$> pure ()
 --         c2 [] = Nothing
 --         c2 (x :: xs) = Just (x, xs)
 
--- -- this leads to stack overflow, most likely lazyness should be added
+-- -- this leads to stack overflow, most likely laziness should be added
 -- -- somehow
 -- partial many' : Syntax δ γ => δ α γ -> δ (Colist α) γ
 -- many' p =  nil' <$> pure ()

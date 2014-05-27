@@ -5,6 +5,10 @@ data Parser a = MkParser (String -> (Maybe a, String))
 parse : Parser a -> String -> (Maybe a, String)
 parse p = case p of
   MkParser x => x
+  
+class Applicative f => LazyAlternative (f : Type -> Type) where
+    empty : f a
+    alt : f a -> Lazy (f a) -> f a
 
 instance Functor Parser where
   map f p = MkParser $ \str => case (parse p str) of
@@ -24,9 +28,9 @@ mutual
       (Nothing, rest) => (Nothing, rest)
       (Just x, rest) => parse (g x) rest
       
-instance Alternative Parser where
+instance LazyAlternative Parser where
   empty = MkParser $ \str => (Nothing, str)
-  f <|> s = MkParser $ \str => case (parse f str) of
+  alt f s = MkParser $ \str => case (parse f str) of
     (Nothing, rest) => parse s str
     (Just x, rest) => (Just x, rest)
 
@@ -58,11 +62,13 @@ string str = do
 where c = strHead str
       cs = strTail str
 
-mutual
-  many : Parser a -> Parser (List a)
-  many p = some p <|> return []
 
-  some : Parser a -> Parser (List a)
+-- turns out this leads to stack overflow too; should be fixed
+mutual
+  many : Parser a -> (Parser (List a))
+  many p = alt (some p) (return [])
+
+  some : Parser a -> (Parser (List a))
   some p = do
     a <- p
     as <- many p
