@@ -3,18 +3,18 @@ module InvParComb
 %default total
 
 data IPC : (listtype : Type) -> (valtype : Type) -> Type where
-  MkIPC : (Eq valtype, Eq listtype) => (parse : (List listtype -> Maybe (valtype, List listtype))) -> 
+  MkIPC : (parse : (List listtype -> Maybe (valtype, List listtype))) -> 
           (compose : (valtype -> Maybe (List listtype))) ->
           IPC listtype valtype
 
-ipc_parse : (Eq a, Eq b) => IPC a b -> List a -> Maybe (b, List a)
+ipc_parse : IPC a b -> List a -> Maybe (b, List a)
 ipc_parse (MkIPC p c) = p
 
-ipc_compose : (Eq a, Eq b) => IPC a b -> b -> Maybe (List a)
+ipc_compose : IPC a b -> b -> Maybe (List a)
 ipc_compose (MkIPC p c) = c
 
 -- Functor, kind of
-ipc_fmap : (Eq a, Eq b) => (fp : a -> b) -> (fc : b -> a) -> IPC c a -> IPC c b
+ipc_fmap : (fp : a -> b) -> (fc : b -> a) -> IPC c a -> IPC c b
 ipc_fmap fp fc (MkIPC parse compose) = MkIPC pf cf
   where
     pf l = do
@@ -29,19 +29,18 @@ ipc_pure v = MkIPC pf cf
     pf l = Just (v, l)
     cf x = if x == v then Just [v] else Nothing
 
-ipc_empty : (Eq a, Eq b) => IPC a b
+ipc_empty : IPC a b
 ipc_empty = MkIPC (\x => Nothing) (\x => Just $ List.Nil)
 
-ipc_item : (Eq a, Eq b) => IPC a a
+ipc_item : IPC a a
 ipc_item = MkIPC pf cf
   where
     pf [] = Nothing
     pf (x :: xs) = Just (x, xs)
     cf x = Just [x]
 
-ipc_fail : (Eq a, Eq b) => IPC a a
+ipc_fail : IPC a a
 ipc_fail = MkIPC (const Nothing) (const Nothing)
-
 
 -- Alternative
 mplus : Maybe a -> Lazy (Maybe a) -> Maybe a
@@ -70,13 +69,13 @@ ipc_tup (MkIPC p1 c1) (MkIPC p2 c2) = MkIPC pf cf
 
 
 -- Vector
-ipc_nilv : (Eq a, Eq b) => IPC a (Vect 0 b)
+ipc_nilv : IPC a (Vect 0 b)
 ipc_nilv = MkIPC pf cf
   where
     pf l = Just $ ([], l)
     cf x = Just []
 
-ipc_consv : (Eq a, Eq b) => IPC a b -> IPC a (Vect n b) -> IPC a (Vect (S n) b)
+ipc_consv : IPC a b -> IPC a (Vect n b) -> IPC a (Vect (S n) b)
 ipc_consv (MkIPC p1 c1) (MkIPC p2 c2) = MkIPC pf cf
   where
     pf l = do
@@ -88,7 +87,7 @@ ipc_consv (MkIPC p1 c1) (MkIPC p2 c2) = MkIPC pf cf
       l2 <- c2 xs
       return (l1 ++ l2)
 
-ipc_rep : (Eq a, Eq b) => (n : Nat) -> IPC a b -> IPC a (Vect n b)
+ipc_rep : (n : Nat) -> IPC a b -> IPC a (Vect n b)
 ipc_rep Z p = ipc_nilv
 ipc_rep (S k) p = ipc_consv p (ipc_rep k p)
 
