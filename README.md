@@ -43,3 +43,8 @@ The following changes were made:
 1. `String` was replaced with `List γ` in order to make it more general
 2. `many` is implemented with an upper bound argument, which is not
    that nice
+
+
+## InvParComb ##
+
+A mix of those things, writing from scratch.
