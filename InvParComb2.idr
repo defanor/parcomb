@@ -111,6 +111,45 @@ val : (Syntax d a, Eq a) => a -> d a a
 val x = sat (== x)
 
 
+nilv : PartIso () (Vect 0 a)
+nilv = MkPartIso (const . Just $ Vect.Nil {a=a})
+                 (\xs => case xs of
+                   [] => Just ()
+                   _ => Nothing)
+
+consv : PartIso (a, Vect n a) (Vect (S n) a)
+consv = MkPartIso c1 c2
+  where c1 (x, xs) = Just (x :: xs)
+        c2 (x :: xs) = Just (x, xs)
+
+rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
+rep Z p= nilv <$> pure ()
+rep (S k) p = consv <$> p <*> rep k p
+
+
+
+-- Various types
+
+-- Binary <-> Nat
+natToBits : Nat -> (k : Nat) -> Vect k Bool
+natToBits n v = reverse $ natToBits' n v
+  where natToBits' : Nat -> (k : Nat) -> Vect k Bool
+        natToBits' n Z = []
+        natToBits' Z bits = replicate bits False
+        natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
+
+bitsToNat : Vect n Bool -> Nat
+bitsToNat v = bitsToNat' (reverse v)
+  where bitsToNat' : Vect k Bool -> Nat
+        bitsToNat' [] = Z
+        bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
+
+nat : Syntax d Bool => Nat -> d Nat Bool
+nat size = MkPartIso pf cf <$> rep size item
+  where
+    pf l = Just $ bitsToNat l
+    cf x = Just $ natToBits x size
+
 
 -- testing
 
