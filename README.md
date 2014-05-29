@@ -3,6 +3,11 @@ parcomb
 
 Playing with parsing in Idris.
 
+The ultimate goal is to get handy and verified (easily verifiable)
+parser/printer combinators (allowing to use a single structure
+definition for both directions), suitable for parsing of both binary
+and textual network protocols and file formats.
+
 
 ## Parcomb ##
 
@@ -47,4 +52,9 @@ The following changes were made:
 
 ## InvParComb ##
 
-A mix of those things, writing from scratch.
+A messy mix of the above.
+
+
+## InvParComb2 ##
+
+A fork of Invertible: cleaner and using Maybe instead of List.
