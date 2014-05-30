@@ -15,8 +15,9 @@ class PartIsoFunctor (f : Type -> Type -> Type) where
 class PFunctor (f : Type -> Type -> Type) where
   (<*>) : f a c -> f b c -> f (a, b) c
 
+infixl 3 <||>
 class PAlternative (f : Type -> Type -> Type) where
-  (<|>) : f a c -> Lazy (f a c) -> f a c
+  (<||>) : f a c -> Lazy (f a c) -> f a c
   empty : f a c
 
 class (PartIsoFunctor d, PFunctor d, PAlternative d) => Syntax (d : Type -> Type -> Type) c where
@@ -63,7 +64,7 @@ instance PFunctor Parser where
       return ((x, y), ret)
 
 instance PAlternative Parser where
-  (MkParser p) <|> (MkParser q) = MkParser (\s => mplus (p s) (q s))
+  (MkParser p) <||> (MkParser q) = MkParser (\s => mplus (p s) (q s))
   empty = MkParser (\s => Nothing)
 
 instance Syntax Parser c where
@@ -87,7 +88,7 @@ instance PFunctor Printer where
   (MkPrinter p) <*> (MkPrinter q) = MkPrinter (\(x, y) => Just (++) <$> (p x) <$> (q y))
 
 instance PAlternative Printer where
-  (MkPrinter p) <|> (MkPrinter q) = MkPrinter $ \s =>
+  (MkPrinter p) <||> (MkPrinter q) = MkPrinter $ \s =>
     case (p s) of
       Nothing => (q s)
       x => x
@@ -100,6 +101,83 @@ instance Syntax Printer γ where
     else Nothing)
   item = MkPrinter (\t => Just [t])
   
+
+-- Algebra, foldl
+
+infixr 1 >=>
+(>=>) : Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
+f >=> g = \x => f x >>= g
+
+pId : PartIso a a
+pId = MkPartIso (\x => Just x) (\x => Just x)
+
+(.) : PartIso b c -> PartIso a b -> PartIso a c
+g . f = MkPartIso (ipc_apply f >=> ipc_apply g) (ipc_unapply g >=> ipc_unapply f)
+
+
+pTup : PartIso a b -> PartIso c d -> PartIso (a, c) (b, d)
+pTup i j = MkPartIso f g where
+  f (a, b) = case (ipc_apply i a) of
+    Nothing => Nothing
+    Just x => case (ipc_apply j b) of
+      Nothing => Nothing
+      Just y => Just (x, y)
+  g (c, d) = case (ipc_unapply i c) of
+    Nothing => Nothing
+    Just x => case (ipc_unapply j d) of
+      Nothing => Nothing
+      Just y => Just (x, y)
+
+associate : PartIso (a, (b, c)) ((a, b), c)
+associate = MkPartIso f g where
+  f (a, (b, c)) = Just ((a, b), c)
+  g ((a, b), c) = Just (a, (b, c))
+
+commute : PartIso (a, b) (b, a)
+commute = MkPartIso f f where
+  f : (c, d) -> Maybe (d, c)
+  f (a, b) = Just (b, a)
+
+unit : PartIso a (a, ())
+unit = MkPartIso f g where
+  f a = Just (a, ())
+  g (a, ()) = Just a
+
+
+partial driver : (a -> Maybe a) -> (a -> a)
+driver step state = case step state of
+  Just state' => driver step state'
+  Nothing => state
+
+partial iterate : PartIso a a -> PartIso a a
+iterate step = MkPartIso f g where
+  f = Just . driver (ipc_apply step)
+  g = Just . driver (ipc_unapply step)
+
+
+nil : PartIso () (List a)
+nil = MkPartIso c1 c2
+  where
+    c1 () = Just []
+    c2 [] = Just ()
+    c2 (x :: xs) = Nothing
+
+cons : PartIso (a, List a) (List a)
+cons = MkPartIso c1 c2
+  where
+    c1 (x, l) = Just $ x :: l
+    c2 [] = Nothing
+    c2 (x :: xs) = Just (x, xs)
+
+
+step : PartIso (a, b) a -> PartIso (a, List b) (a, List b)
+step i = (pTup i pId) . associate . (pTup pId (ipc_inverse cons))
+
+partial foldl : PartIso (a, b) a -> PartIso (a, List b) a
+foldl i = ipc_inverse unit . (pTup pId (ipc_inverse nil)) . iterate (step i)
+
+
+
 
 -- Basic parsers/composers
 
@@ -123,9 +201,8 @@ consv = MkPartIso c1 c2
         c2 (x :: xs) = Just (x, xs)
 
 rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
-rep Z p= nilv <$> pure ()
+rep Z p = nilv <$> pure ()
 rep (S k) p = consv <$> p <*> rep k p
-
 
 
 -- Various types
@@ -155,57 +232,11 @@ nat size = MkPartIso pf cf <$> rep size item
 
 test : Syntax d Nat => d (Nat, Nat) Nat
 test = (val 1) <*> item
-   <|> (val 2) <*> (val 3)
+  <||> (val 2) <*> (val 3)
+
+test2 : Syntax d Bool => d (Nat, Bool) Bool
+test2 = (nat 4) <*> (val True)
+   <||> (nat 2) <*> (val False)
 
 -- compose test (1,2)
 -- parse test [2,3]
-
-
-
--- nil : PartIso () (List a)
--- nil = MkPartIso (const . Just $ List.Nil {a=a})
---                 (\xs => case xs of
---                    [] => Just ()
---                    _ => Nothing)
-
--- cons : PartIso (a, List a) (List a)
--- cons = MkPartIso c1 c2
---   where c1 (x, xs) = Just (x :: xs)
---         c2 [] = Nothing
---         c2 (x :: xs) = Just (x, xs)
-
-
-
-
--- many : Syntax d c => d a c -> d (List a) c
--- many p = nil <$> pure empty
---     <|> cons <$> (p <*> (many p))
-
--- many : Syntax d c => (max : Nat) -> d a c -> d (List a) c
--- many Z _ = nil <$> pure ()
--- many (S m) p = nil <$> pure ()
---           <|> cons <$> (p <*> (many m p))
-
-
-
-
--- -- combinators
-
--- nilv : PartIso () (Vect 0 α)
--- nilv = MkPartIso (const . Just $ Vect.Nil {a=α})
---                 (\xs => case xs of
---                    [] => Just ()
---                    _ => Nothing)
-
--- consv : PartIso (α, Vect n α) (Vect (S n) α)
--- consv = MkPartIso c1 c2
---   where c1 (x, xs) = Just (x :: xs)
---         c2 (x :: xs) = Just (x, xs)
-
--- times : Syntax δ γ => {n : Nat} -> δ α γ -> δ (Vect n α) γ
--- times {n} p with (n)
---   | Z = (nilv <$> (Invertible.pure ()))
---   | (S k) = (consv <$> (p `pf` (times p)))
-
-
-
