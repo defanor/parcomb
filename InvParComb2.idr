@@ -13,7 +13,7 @@ class PartIsoFunctor (f : Type -> Type -> Type) where
   (<$>) : PartIso a b -> (f a c -> f b c)
 
 class PFunctor (f : Type -> Type -> Type) where
-  (<*>) : f a c -> f b c -> f (a, b) c
+  (<*>) : f a c -> Lazy (f b c) -> f (a, b) c
 
 infixl 3 <||>
 class PAlternative (f : Type -> Type -> Type) where
@@ -56,15 +56,22 @@ instance PartIsoFunctor Parser where
       return (y, rest)
 
 instance PFunctor Parser where
-  (MkParser p) <*> (MkParser q) = MkParser pf
+  (MkParser p) <*> mkpq = MkParser pf
   where
     pf l = do
       (x, rest) <- p l
-      (y, ret) <- q rest
-      return ((x, y), ret)
+      case mkpq of
+        (MkParser q) => do
+          (y, ret) <- q rest
+          return ((x, y), ret)
 
 instance PAlternative Parser where
-  (MkParser p) <||> (MkParser q) = MkParser (\s => mplus (p s) (q s))
+  (MkParser p) <||> mkpq = MkParser pf
+  where
+    pf l = case p l of
+      Just x => Just x
+      Nothing => case mkpq of
+        (MkParser q) => q l
   empty = MkParser (\s => Nothing)
 
 instance Syntax Parser c where
@@ -85,14 +92,23 @@ instance PartIsoFunctor Printer where
   iso <$> (MkPrinter p) = MkPrinter (\b => ipc_unapply iso b >>= p)
 
 instance PFunctor Printer where
-  (MkPrinter p) <*> (MkPrinter q) = MkPrinter (\(x, y) => Just (++) <$> (p x) <$> (q y))
+  (MkPrinter p) <*> mkpq = MkPrinter pf
+  where
+    pf (x, y) = do
+      x' <- p x
+      case mkpq of
+        (MkPrinter q) => do
+          y' <- q y
+          return (x' ++ y')
 
 instance PAlternative Printer where
-  (MkPrinter p) <||> (MkPrinter q) = MkPrinter $ \s =>
+  (MkPrinter p) <||> mkpq = MkPrinter $ \s =>
     case (p s) of
-      Nothing => (q s)
+      Nothing => case mkpq of
+        (MkPrinter q) => q s
       x => x
   empty = MkPrinter (\s => Nothing)
+
 
 instance Syntax Printer γ where
   pure x = MkPrinter (\y =>
@@ -100,7 +116,94 @@ instance Syntax Printer γ where
     then Just []
     else Nothing)
   item = MkPrinter (\t => Just [t])
-  
+
+
+-- Basic parsers/composers
+
+sat : Syntax d a => (a -> Bool) -> d a a
+sat p = (MkPartIso check check) <$> item
+  where check x = if p x then Just x else Nothing
+
+val : (Syntax d a, Eq a) => a -> d a a
+val x = sat (== x)
+
+
+-- rep
+
+nilv : PartIso () (Vect 0 a)
+nilv = MkPartIso (const . Just $ Vect.Nil {a=a})
+                 (\xs => case xs of
+                   [] => Just ()
+                   _ => Nothing)
+
+consv : PartIso (a, Vect n a) (Vect (S n) a)
+consv = MkPartIso c1 c2
+  where c1 (x, xs) = Just (x :: xs)
+        c2 (x :: xs) = Just (x, xs)
+
+rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
+rep Z p = nilv <$> pure ()
+rep (S k) p = consv <$> p <*> rep k p
+
+
+-- many
+
+nil : PartIso () (List a)
+nil = MkPartIso c1 c2
+  where
+    c1 () = Just []
+    c2 [] = Just ()
+    c2 (x :: xs) = Nothing
+
+cons : PartIso (a, List a) (List a)
+cons = MkPartIso c1 c2
+  where
+    c1 (x, l) = Just $ x :: l
+    c2 [] = Nothing
+    c2 (x :: xs) = Just (x, xs)
+
+partial many : Syntax d c => d a c -> d (List a) c
+many p = (cons <$> (p <*> (many p)))
+    <||> (nil <$> pure ())
+
+
+-- Various types
+
+-- Binary <-> Nat
+natToBits : Nat -> (k : Nat) -> Vect k Bool
+natToBits n v = reverse $ natToBits' n v
+  where natToBits' : Nat -> (k : Nat) -> Vect k Bool
+        natToBits' n Z = []
+        natToBits' Z bits = replicate bits False
+        natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
+
+bitsToNat : Vect n Bool -> Nat
+bitsToNat v = bitsToNat' (reverse v)
+  where bitsToNat' : Vect k Bool -> Nat
+        bitsToNat' [] = Z
+        bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
+
+nat : Syntax d Bool => Nat -> d Nat Bool
+nat size = MkPartIso pf cf <$> rep size item
+  where
+    pf l = Just $ bitsToNat l
+    cf x = Just $ natToBits x size
+
+
+-- testing
+
+test : Syntax d Nat => d (Nat, Nat) Nat
+test = (val 1) <*> item
+  <||> (val 2) <*> (val 3)
+
+test2 : Syntax d Bool => d (Nat, Bool) Bool
+test2 = (nat 4) <*> (val True)
+   <||> (nat 2) <*> (val False)
+
+-- compose test (1,2)
+-- parse test [2,3]
+
+
 
 -- Algebra, foldl
 
@@ -154,89 +257,8 @@ iterate step = MkPartIso f g where
   f = Just . driver (ipc_apply step)
   g = Just . driver (ipc_unapply step)
 
-
-nil : PartIso () (List a)
-nil = MkPartIso c1 c2
-  where
-    c1 () = Just []
-    c2 [] = Just ()
-    c2 (x :: xs) = Nothing
-
-cons : PartIso (a, List a) (List a)
-cons = MkPartIso c1 c2
-  where
-    c1 (x, l) = Just $ x :: l
-    c2 [] = Nothing
-    c2 (x :: xs) = Just (x, xs)
-
-
 step : PartIso (a, b) a -> PartIso (a, List b) (a, List b)
 step i = (pTup i pId) . associate . (pTup pId (ipc_inverse cons))
 
 partial foldl : PartIso (a, b) a -> PartIso (a, List b) a
 foldl i = ipc_inverse unit . (pTup pId (ipc_inverse nil)) . iterate (step i)
-
-
-
-
--- Basic parsers/composers
-
-sat : Syntax d a => (a -> Bool) -> d a a
-sat p = (MkPartIso check check) <$> item
-  where check x = if p x then Just x else Nothing
-
-val : (Syntax d a, Eq a) => a -> d a a
-val x = sat (== x)
-
-
-nilv : PartIso () (Vect 0 a)
-nilv = MkPartIso (const . Just $ Vect.Nil {a=a})
-                 (\xs => case xs of
-                   [] => Just ()
-                   _ => Nothing)
-
-consv : PartIso (a, Vect n a) (Vect (S n) a)
-consv = MkPartIso c1 c2
-  where c1 (x, xs) = Just (x :: xs)
-        c2 (x :: xs) = Just (x, xs)
-
-rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
-rep Z p = nilv <$> pure ()
-rep (S k) p = consv <$> p <*> rep k p
-
-
--- Various types
-
--- Binary <-> Nat
-natToBits : Nat -> (k : Nat) -> Vect k Bool
-natToBits n v = reverse $ natToBits' n v
-  where natToBits' : Nat -> (k : Nat) -> Vect k Bool
-        natToBits' n Z = []
-        natToBits' Z bits = replicate bits False
-        natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
-
-bitsToNat : Vect n Bool -> Nat
-bitsToNat v = bitsToNat' (reverse v)
-  where bitsToNat' : Vect k Bool -> Nat
-        bitsToNat' [] = Z
-        bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
-
-nat : Syntax d Bool => Nat -> d Nat Bool
-nat size = MkPartIso pf cf <$> rep size item
-  where
-    pf l = Just $ bitsToNat l
-    cf x = Just $ natToBits x size
-
-
--- testing
-
-test : Syntax d Nat => d (Nat, Nat) Nat
-test = (val 1) <*> item
-  <||> (val 2) <*> (val 3)
-
-test2 : Syntax d Bool => d (Nat, Bool) Bool
-test2 = (nat 4) <*> (val True)
-   <||> (nat 2) <*> (val False)
-
--- compose test (1,2)
--- parse test [2,3]
