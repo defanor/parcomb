@@ -2,8 +2,10 @@ module InvParComb2
 
 %default total
 %hide Prelude.Algebra.(<*>)
+%hide Prelude.Applicative.(<|>)
 
 -- http://www.informatik.uni-marburg.de/~rendel/unparse/
+
 
 -- core definitions
 
@@ -15,9 +17,8 @@ class PartIsoFunctor (f : Type -> Type -> Type) where
 class PFunctor (f : Type -> Type -> Type) where
   (<*>) : f a c -> Lazy (f b c) -> f (a, b) c
 
-infixl 3 <||>
 class PAlternative (f : Type -> Type -> Type) where
-  (<||>) : f a c -> Lazy (f a c) -> f a c
+  (<|>) : f a c -> Lazy (f a c) -> f a c
   empty : f a c
 
 class (PartIsoFunctor d, PFunctor d, PAlternative d) => Syntax (d : Type -> Type -> Type) c where
@@ -26,6 +27,7 @@ class (PartIsoFunctor d, PFunctor d, PAlternative d) => Syntax (d : Type -> Type
 
 
 -- helper functions
+
 ipc_inverse : PartIso a b -> PartIso b a
 ipc_inverse (MkPartIso f g) = MkPartIso g f
 
@@ -34,10 +36,6 @@ ipc_apply (MkPartIso f g) = f
 
 ipc_unapply : PartIso a b -> b -> Maybe a
 ipc_unapply = ipc_apply . ipc_inverse
-
-mplus : Maybe a -> Lazy (Maybe a) -> Maybe a
-mplus Nothing m2 = m2
-mplus j m2 = j
 
 
 -- Parser
@@ -66,7 +64,7 @@ instance PFunctor Parser where
           return ((x, y), ret)
 
 instance PAlternative Parser where
-  (MkParser p) <||> mkpq = MkParser pf
+  (MkParser p) <|> mkpq = MkParser pf
   where
     pf l = case p l of
       Just x => Just x
@@ -80,6 +78,7 @@ instance Syntax Parser c where
   where
     f [] = Nothing
     f (x :: xs) = Just (x, xs)
+
 
 -- Printer
 
@@ -102,7 +101,7 @@ instance PFunctor Printer where
           return (x' ++ y')
 
 instance PAlternative Printer where
-  (MkPrinter p) <||> mkpq = MkPrinter $ \s =>
+  (MkPrinter p) <|> mkpq = MkPrinter $ \s =>
     case (p s) of
       Nothing => case mkpq of
         (MkPrinter q) => q s
@@ -164,44 +163,55 @@ cons = MkPartIso c1 c2
 
 partial many : Syntax d c => d a c -> d (List a) c
 many p = (cons <$> (p <*> (many p)))
-    <||> (nil <$> pure ())
+     <|> (nil <$> pure ())
 
 
 -- Various types
 
--- Binary <-> Nat
-natToBits : Nat -> (k : Nat) -> Vect k Bool
-natToBits n v = reverse $ natToBits' n v
+-- List Bool <-> Nat, with size and endianness
+
+data Endianness = BE | LE
+
+order : Endianness -> Vect n Bool -> Vect n Bool
+order BE = reverse
+order LE = id
+
+natToBits : Nat -> Endianness -> (k : Nat) -> Vect k Bool
+natToBits n e v = order e $ natToBits' n v
   where natToBits' : Nat -> (k : Nat) -> Vect k Bool
         natToBits' n Z = []
         natToBits' Z bits = replicate bits False
         natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
 
-bitsToNat : Vect n Bool -> Nat
-bitsToNat v = bitsToNat' (reverse v)
+bitsToNat : Vect n Bool -> Endianness -> Nat
+bitsToNat v e = bitsToNat' (order e v)
   where bitsToNat' : Vect k Bool -> Nat
         bitsToNat' [] = Z
         bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
 
-nat : Syntax d Bool => Nat -> d Nat Bool
-nat size = MkPartIso pf cf <$> rep size item
+nat : Syntax d Bool => Endianness -> Nat -> d Nat Bool
+nat endianness size = MkPartIso pf cf <$> rep size item
   where
-    pf l = Just $ bitsToNat l
-    cf x = Just $ natToBits x size
+    pf l = Just $ bitsToNat l endianness
+    cf x = Just $ natToBits x endianness size
 
 
 -- testing
 
 test : Syntax d Nat => d (Nat, Nat) Nat
 test = (val 1) <*> item
-  <||> (val 2) <*> (val 3)
+   <|> (val 2) <*> (val 3)
 
 test2 : Syntax d Bool => d (Nat, Bool) Bool
-test2 = (nat 4) <*> (val True)
-   <||> (nat 2) <*> (val False)
+test2 = (nat BE 4) <*> (val True)
+    <|> (nat BE 2) <*> (val False)
 
--- compose test (1,2)
--- parse test [2,3]
+partial test3 : Syntax d Bool => d (Bool, List Nat) Bool
+test3 = (val True) <*> (many $ nat BE 4)
+    <|> (val False) <*> (many $ nat LE 3)
+
+-- compose test3 (False, [1,2,3])
+-- parse test3 [False, True, False, False, False, True, False, True, True, False]
 
 
 
