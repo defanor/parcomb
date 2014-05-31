@@ -3,6 +3,7 @@ module InvParComb2
 %default total
 %hide Prelude.Algebra.(<*>)
 %hide Prelude.Applicative.(<|>)
+
 -- http://www.informatik.uni-marburg.de/~rendel/unparse/
 
 

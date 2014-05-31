@@ -58,3 +58,20 @@ A messy mix of the above.
 ## InvParComb2 ##
 
 A fork of Invertible: cleaner and using Maybe instead of List.
+
+
+## VerifiedInvertible ##
+
+InvParComb2 with verified partial isomorphisms, except for `ignore`:
+
+    data PartIso : Type -> Type -> Type where
+      MkPartIso : (to : a -> Maybe b) ->
+                  (from : b -> Maybe a) ->
+                  (toFrom : (y : b) -> maybe T (\x => x = y) (from y >>= to)) ->
+                  (fromTo : (x : a) -> maybe T (\y => y = x) (to x >>= from)) ->
+                  PartIso a b
+
+`toFrom` and `fromTo` may be stronger here: for now they just say
+that there could not be wrong results, if those results are not
+errors, but there's no warranty that it'll be able to parse whatever
+it composed and vice versa.
