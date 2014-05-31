@@ -57,7 +57,8 @@ A messy mix of the above.
 
 ## InvParComb2 ##
 
-A fork of Invertible: cleaner and using Maybe instead of List.
+A fork of Invertible: cleaner, with necessary laziness and nicer
+`many`, and using Maybe instead of List.
 
 
 ## VerifiedInvertible ##
@@ -71,7 +72,7 @@ InvParComb2 with verified partial isomorphisms, except for `ignore`:
                   (fromTo : (x : a) -> maybe T (\y => y = x) (to x >>= from)) ->
                   PartIso a b
 
-`toFrom` and `fromTo` may be stronger here: for now they just say
-that there could not be wrong results, if those results are not
-errors, but there's no warranty that it'll be able to parse whatever
-it composed and vice versa.
+`toFrom` and `fromTo` may be stronger here: for now they just say that
+there could not be wrong results, if those results are not errors, but
+there's no warranty that it'll be able to parse whatever it composed
+and vice versa.
