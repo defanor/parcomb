@@ -3,7 +3,6 @@ module InvParComb2
 %default total
 %hide Prelude.Algebra.(<*>)
 %hide Prelude.Applicative.(<|>)
-
 -- http://www.informatik.uni-marburg.de/~rendel/unparse/
 
 
@@ -36,6 +35,64 @@ ipc_apply (MkPartIso f g) = f
 
 ipc_unapply : PartIso a b -> b -> Maybe a
 ipc_unapply = ipc_apply . ipc_inverse
+
+
+-- Algebra
+
+infixr 1 >=>
+(>=>) : Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
+f >=> g = \x => f x >>= g
+
+pId : PartIso a a
+pId = MkPartIso (\x => Just x) (\x => Just x)
+
+(.) : PartIso b c -> PartIso a b -> PartIso a c
+g . f = MkPartIso (ipc_apply f >=> ipc_apply g) (ipc_unapply g >=> ipc_unapply f)
+
+
+pTup : PartIso a b -> PartIso c d -> PartIso (a, c) (b, d)
+pTup i j = MkPartIso f g where
+  f (a, b) = case (ipc_apply i a) of
+    Nothing => Nothing
+    Just x => case (ipc_apply j b) of
+      Nothing => Nothing
+      Just y => Just (x, y)
+  g (c, d) = case (ipc_unapply i c) of
+    Nothing => Nothing
+    Just x => case (ipc_unapply j d) of
+      Nothing => Nothing
+      Just y => Just (x, y)
+
+associate : PartIso (a, (b, c)) ((a, b), c)
+associate = MkPartIso f g where
+  f (a, (b, c)) = Just ((a, b), c)
+  g ((a, b), c) = Just (a, (b, c))
+
+commute : PartIso (a, b) (b, a)
+commute = MkPartIso f f where
+  f : (c, d) -> Maybe (d, c)
+  f (a, b) = Just (b, a)
+
+unit : PartIso a (a, ())
+unit = MkPartIso f g where
+  f a = Just (a, ())
+  g (a, ()) = Just a
+
+
+-- *>, <*
+
+infixl 3 *>
+(*>) : Syntax d c => d () c -> d a c -> d a c
+p *> q = ipc_inverse unit . commute <$> p <*> q
+
+infixl 3 <*
+(<*) : Syntax d c => d a c -> d () c -> d a c
+p <* q = ipc_inverse unit <$> p <*> q
+
+ignore : a -> PartIso a ()
+ignore x = MkPartIso f g where
+  f y = Just ()
+  g () = Just x
 
 
 -- Parser
@@ -207,55 +264,14 @@ test2 = (nat BE 4) <*> (val True)
     <|> (nat BE 2) <*> (val False)
 
 partial test3 : Syntax d Bool => d (Bool, List Nat) Bool
-test3 = (val True) <*> (many $ nat BE 4)
-    <|> (val False) <*> (many $ nat LE 3)
+test3 = (val True) <*> ((ignore False <$> item) *> (many $ nat BE 4))
+    <|> (val False) <*> ((ignore True <$> item) *> (many $ nat LE 3))
 
 -- compose test3 (False, [1,2,3])
 -- parse test3 [False, True, False, False, False, True, False, True, True, False]
 
 
-
--- Algebra, foldl
-
-infixr 1 >=>
-(>=>) : Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
-f >=> g = \x => f x >>= g
-
-pId : PartIso a a
-pId = MkPartIso (\x => Just x) (\x => Just x)
-
-(.) : PartIso b c -> PartIso a b -> PartIso a c
-g . f = MkPartIso (ipc_apply f >=> ipc_apply g) (ipc_unapply g >=> ipc_unapply f)
-
-
-pTup : PartIso a b -> PartIso c d -> PartIso (a, c) (b, d)
-pTup i j = MkPartIso f g where
-  f (a, b) = case (ipc_apply i a) of
-    Nothing => Nothing
-    Just x => case (ipc_apply j b) of
-      Nothing => Nothing
-      Just y => Just (x, y)
-  g (c, d) = case (ipc_unapply i c) of
-    Nothing => Nothing
-    Just x => case (ipc_unapply j d) of
-      Nothing => Nothing
-      Just y => Just (x, y)
-
-associate : PartIso (a, (b, c)) ((a, b), c)
-associate = MkPartIso f g where
-  f (a, (b, c)) = Just ((a, b), c)
-  g ((a, b), c) = Just (a, (b, c))
-
-commute : PartIso (a, b) (b, a)
-commute = MkPartIso f f where
-  f : (c, d) -> Maybe (d, c)
-  f (a, b) = Just (b, a)
-
-unit : PartIso a (a, ())
-unit = MkPartIso f g where
-  f a = Just (a, ())
-  g (a, ()) = Just a
-
+-- foldl
 
 partial driver : (a -> Maybe a) -> (a -> a)
 driver step state = case step state of
