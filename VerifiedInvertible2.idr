@@ -248,43 +248,63 @@ val : (Syntax d a, Eq a) => a -> d a a
 val x = sat (== x)
 
 
--- -- rep
+-- rep
 
--- nilv : PartIso () (Vect 0 a)
--- nilv = MkPartIso (const . Just $ Vect.Nil {a=a})
---                  (\xs => case xs of
---                    [] => Just ()
---                    _ => Nothing)
+nilv : PartIso () (Vect 0 a)
+nilv = MkPartIso to from tf ft
+  where
+    to : () -> Maybe (Vect 0 a)
+    to () = Just $ Vect.Nil {a=a}
+    from : (Vect 0 a) -> Maybe ()
+    from [] = Just () 
+    from _ = Nothing
+    tf [] = refl
+    ft () = refl
 
--- consv : PartIso (a, Vect n a) (Vect (S n) a)
--- consv = MkPartIso c1 c2
---   where c1 (x, xs) = Just (x :: xs)
---         c2 (x :: xs) = Just (x, xs)
+consv : PartIso (a, Vect n a) (Vect (S n) a)
+consv = MkPartIso c1 c2 tf ft
+  where
+    c1 : (a, Vect n a) -> Maybe (Vect (S n) a)
+    c1 (x, xs) = Just (x :: xs)
+    c2 : (Vect (S n) a) -> Maybe (a, Vect n a)
+    c2 (x :: xs) = Just (x, xs)
+    tf (x :: xs) = refl
+    ft (a, b) = refl
 
--- rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
--- rep Z p = nilv <$> pure ()
--- rep (S k) p = consv <$> p <*> rep k p
+rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
+rep Z p = nilv <$> pure ()
+rep (S k) p = consv <$> p <*> rep k p
 
 
--- -- many
+-- many
 
--- nil : PartIso () (List a)
--- nil = MkPartIso c1 c2
---   where
---     c1 () = Just []
---     c2 [] = Just ()
---     c2 (x :: xs) = Nothing
+nil : PartIso () (List a)
+nil = MkPartIso c1 c2 tf ft
+  where
+    c1 : () -> Maybe (List a)
+    c1 () = Just []
+    c2 : List a -> Maybe ()
+    c2 [] = Just ()
+    c2 (x :: xs) = Nothing
+    tf [] = refl
+    tf (x :: xs) = tt
+    ft () = refl
 
--- cons : PartIso (a, List a) (List a)
--- cons = MkPartIso c1 c2
---   where
---     c1 (x, l) = Just $ x :: l
---     c2 [] = Nothing
---     c2 (x :: xs) = Just (x, xs)
+cons : PartIso (a, List a) (List a)
+cons = MkPartIso c1 c2 tf ft
+  where
+    c1 : (a, List a) -> Maybe (List a)
+    c1 (x, l) = Just $ x :: l
+    c2 : List a -> Maybe (a, List a)
+    c2 [] = Nothing
+    c2 (x :: xs) = Just (x, xs)
+    tf [] = tt
+    tf (x :: xs) = refl
+    ft (x, l) = refl
 
--- partial many : Syntax d c => d a c -> d (List a) c
--- many p = (cons <$> (p <*> (many p)))
---      <|> (nil <$> pure ())
+partial many : Syntax d c => d a c -> d (List a) c
+many p = (cons <$> (p <*> (many p)))
+     <|> (nil <$> pure ())
 
 
 -- -- Various types
