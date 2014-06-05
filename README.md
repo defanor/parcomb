@@ -8,6 +8,8 @@ parser/printer combinators (allowing to use a single structure
 definition for both directions), suitable for parsing of both binary
 and textual network protocols and file formats.
 
+Currently working on VerifiedInvertible2, which seems most promising.
+
 
 ## Parcomb ##
 
