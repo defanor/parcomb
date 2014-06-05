@@ -224,7 +224,7 @@ instance PAlternative Printer where
   empty = MkPrinter (\s => Nothing)
 
 
-instance Syntax Printer γ where
+instance Syntax Printer c where
   pure x = MkPrinter (\y =>
     if x == y
     then Just []
@@ -311,24 +311,107 @@ many p = (cons <$> (p <*> (many p)))
 
 -- -- List Bool <-> Nat, with size and endianness
 
--- data Endianness = BE | LE
+data Endianness = BE | LE
 
--- order : Endianness -> Vect n Bool -> Vect n Bool
--- order BE = reverse
--- order LE = id
+order : Endianness -> Vect n Bool -> Vect n Bool
+order BE = reverse
+order LE = id
 
--- natToBits : Nat -> Endianness -> (k : Nat) -> Vect k Bool
--- natToBits n e v = order e $ natToBits' n v
---   where natToBits' : Nat -> (k : Nat) -> Vect k Bool
---         natToBits' n Z = []
---         natToBits' Z bits = replicate bits False
---         natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
+natToBits : Nat -> Endianness -> (k : Nat) -> Vect k Bool
+natToBits n e v = order e $ natToBits' n v
+  where natToBits' : Nat -> (k : Nat) -> Vect k Bool
+        natToBits' n Z = []
+        natToBits' Z bits = replicate bits False
+        natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
 
--- bitsToNat : Vect n Bool -> Endianness -> Nat
--- bitsToNat v e = bitsToNat' (order e v)
---   where bitsToNat' : Vect k Bool -> Nat
---         bitsToNat' [] = Z
---         bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
+bitsToNat : Vect n Bool -> Endianness -> Nat
+bitsToNat v e = bitsToNat' (order e v)
+  where bitsToNat' : Vect k Bool -> Nat
+        bitsToNat' [] = Z
+        bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
+        
+div2 : Nat -> Nat
+div2 Z = 0
+div2 (S Z) = 0
+div2 (S (S k)) = div2' (S k)
+  where -- a hack for totality checker
+    div2' : Nat -> Nat
+    div2' Z = 0
+    div2' (S n) = div2 n
+
+mul2 : Nat -> Nat
+mul2 Z = 0
+mul2 (S k) = (S (S (mul2 k)))
+
+mul2_n_zero : (n : Nat) -> (mul2 n = Z) -> n = Z
+mul2_n_zero Z prf = refl
+mul2_n_zero (S k) prf = FalseElim $ OnotS (sym prf)
+
+mutual
+  even : Nat -> Bool
+  even Z = False
+  even (S k) = odd k
+
+  odd : Nat -> Bool
+  odd Z = True
+  odd (S k) = even k
+
+mul2_odd : (n : Nat) -> odd (mul2 n) = True
+mul2_odd Z = {--}?mul2_odd_rhs_1
+mul2_odd (S k) = (mul2_odd k)
+
+mul2_not_even : (n : Nat) -> even (mul2 n) = False
+mul2_not_even Z = refl
+mul2_not_even (S k) = (mul2_not_even k)
+
+
+natToBitsLe : (k : Nat) -> Nat -> Maybe (Vect k Bool)
+natToBitsLe bits Z = Just $ replicate bits False
+natToBitsLe Z n = Nothing
+natToBitsLe (S bits) n = do
+  next <- natToBitsLe bits (div2 n)
+  return $ even n :: next
+
+bitsToNatLe : Vect k Bool -> Nat
+bitsToNatLe [] = Z
+bitsToNatLe (v :: l) = (if v then 1 else 0) + (mul2 $ bitsToNatLe l)
+
+
+
+btnl_zero_step : (xs : Vect k Bool) -> (bitsToNatLe (False :: xs) = Z) -> bitsToNatLe xs = Z
+btnl_zero_step xs prf = mul2_n_zero (bitsToNatLe xs) $
+  replace {P=(\x => 0 + x = Z)} (plusZeroLeftNeutral (mul2 $ bitsToNatLe xs)) prf
+
+btnl_zero : (n : Nat) -> (v : Vect n Bool) -> bitsToNatLe v = Z -> v = Vect.replicate n False
+btnl_zero Z [] prf = refl
+btnl_zero (S k) (False :: xs) prf = cong {f=((Vect.(::)) False)} (btnl_zero k xs (btnl_zero_step xs prf))
+btnl_zero (S k) (True :: xs) prf = (FalseElim $ OnotS (sym prf))
+
+
+
+
+
+ntbl_btnl : (k : Nat) -> (v : Vect k Bool) -> natToBitsLe k (bitsToNatLe v) = Just v
+ntbl_btnl Z [] = refl
+ntbl_btnl (S n) (x :: xs) with (inspect $ bitsToNatLe xs)
+    | match Z {eq=eq} = rewrite eq in
+      rewrite (btnl_zero n xs eq) in case (inspect x) of
+        match True {eq=eq1} => rewrite eq1 in refl
+        match False {eq=eq1} => rewrite eq1 in refl
+    | match (S m) {eq=eq} = rewrite eq in case (inspect x) of
+      match True {eq=eq1} => rewrite eq1 in {--}?mv2
+      match False {eq=eq1} => rewrite eq1 in {--}?mv1
+
+
+-- mv2 : natToBitsLe (S n) (S (S (S (mul2 m)))) = Just (True :: xs)
+
+
+natBitsLeIso : (k : Nat) -> PartIso Nat (Vect k Bool)
+natBitsLeIso k = MkPartIso (natToBitsLe k) (Just . bitsToNatLe) tf ft
+  where
+    tf k = ?tf_2
+    ft n = ?ft
+
 
 -- nat : Syntax d Bool => Endianness -> Nat -> d Nat Bool
 -- nat endianness size = MkPartIso pf cf <$> rep size item
