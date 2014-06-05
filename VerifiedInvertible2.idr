@@ -337,7 +337,7 @@ div2 (S (S k)) = div2' (S k)
   where -- a hack for totality checker
     div2' : Nat -> Nat
     div2' Z = 0
-    div2' (S n) = div2 n
+    div2' (S n) = S (div2 n)
 
 mul2 : Nat -> Nat
 mul2 Z = 0
@@ -357,13 +357,20 @@ mutual
   odd (S k) = even k
 
 mul2_odd : (n : Nat) -> odd (mul2 n) = True
-mul2_odd Z = {--}?mul2_odd_rhs_1
+mul2_odd Z = refl
 mul2_odd (S k) = (mul2_odd k)
 
 mul2_not_even : (n : Nat) -> even (mul2 n) = False
 mul2_not_even Z = refl
 mul2_not_even (S k) = (mul2_not_even k)
 
+div2_mul2_n_eq_n : (n : Nat) -> div2 (mul2 n) = n
+div2_mul2_n_eq_n Z = refl
+div2_mul2_n_eq_n (S k) = cong {f=S} $ div2_mul2_n_eq_n k
+
+div2_S_mul2_n_eq_n : (n : Nat) -> div2 (S (mul2 n)) = n
+div2_S_mul2_n_eq_n Z = refl
+div2_S_mul2_n_eq_n (S k) = cong {f=S} $ div2_S_mul2_n_eq_n k
 
 natToBitsLe : (k : Nat) -> Nat -> Maybe (Vect k Bool)
 natToBitsLe bits Z = Just $ replicate bits False
@@ -387,9 +394,29 @@ btnl_zero Z [] prf = refl
 btnl_zero (S k) (False :: xs) prf = cong {f=((Vect.(::)) False)} (btnl_zero k xs (btnl_zero_step xs prf))
 btnl_zero (S k) (True :: xs) prf = (FalseElim $ OnotS (sym prf))
 
+ntbl_zero : (x : Nat) -> (xs : Vect x Bool) -> natToBitsLe x Z = Just xs -> xs = Vect.replicate x False
+ntbl_zero Z [] prf = refl
+ntbl_zero (S n) (y :: xs) prf = 
+  rewrite (justInjective (replace {P=(\z => z = Just (y :: xs))} (ntbl_zero' (S n)) prf)) in refl
+  where
+    ntbl_zero' : (x : Nat) -> natToBitsLe x Z = Just $ Vect.replicate x False
+    ntbl_zero' x = refl
 
+ntbl_step_false : (n : Nat) -> (xs : Vect n Bool) ->
+  natToBitsLe n (bitsToNatLe xs) = Just xs ->
+  natToBitsLe (S n) (mul2 (bitsToNatLe xs)) = Just (False :: xs)
+ntbl_step_false x xs prf with (bitsToNatLe xs)
+  | Z = rewrite (ntbl_zero x xs prf) in refl
+  | S m = rewrite (div2_mul2_n_eq_n (S m)) in
+    rewrite prf in
+      rewrite (mul2_not_even m) in refl
 
-
+ntbl_step_true : (n : Nat) -> (xs : Vect n Bool) ->
+  natToBitsLe n (bitsToNatLe xs) = Just xs ->
+  natToBitsLe (S n) (S (mul2 (bitsToNatLe xs))) = Just (True :: xs)  
+ntbl_step_true n xs prf = rewrite (mul2_odd (bitsToNatLe xs)) in
+  rewrite (div2_S_mul2_n_eq_n (bitsToNatLe xs)) in
+    rewrite prf in refl
 
 ntbl_btnl : (k : Nat) -> (v : Vect k Bool) -> natToBitsLe k (bitsToNatLe v) = Just v
 ntbl_btnl Z [] = refl
@@ -398,19 +425,19 @@ ntbl_btnl (S n) (x :: xs) with (inspect $ bitsToNatLe xs)
       rewrite (btnl_zero n xs eq) in case (inspect x) of
         match True {eq=eq1} => rewrite eq1 in refl
         match False {eq=eq1} => rewrite eq1 in refl
-    | match (S m) {eq=eq} = rewrite eq in case (inspect x) of
-      match True {eq=eq1} => rewrite eq1 in {--}?mv2
-      match False {eq=eq1} => rewrite eq1 in {--}?mv1
+    | match (S m) {eq=eq} = case (inspect x) of
+      match True {eq=eq1} => rewrite eq1 in (ntbl_step_true n xs (ntbl_btnl n xs))
+      match False {eq=eq1} => rewrite eq1 in (ntbl_step_false n xs (ntbl_btnl n xs))
 
-
+-- bitsToNatLe xs = S m
+-- natToBitsLe (S n) (mul2 (bitsToNatLe xs)) = Just (False :: xs)
 -- mv2 : natToBitsLe (S n) (S (S (S (mul2 m)))) = Just (True :: xs)
 
 
 natBitsLeIso : (k : Nat) -> PartIso Nat (Vect k Bool)
-natBitsLeIso k = MkPartIso (natToBitsLe k) (Just . bitsToNatLe) tf ft
-  where
-    tf k = ?tf_2
-    ft n = ?ft
+natBitsLeIso k = MkPartIso (natToBitsLe k) (Just . bitsToNatLe) ?tf ?ft
+
+
 
 
 -- nat : Syntax d Bool => Endianness -> Nat -> d Nat Bool
