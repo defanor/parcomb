@@ -339,27 +339,14 @@ div2 (S (S k)) = div2' (S k)
     div2' Z = 0
     div2' (S n) = S (div2 n)
 
-div2o : Nat -> Nat
-div2o n = div n 2
-
 div2_zero : (k : Nat) -> (lte k (S Z) = True) -> div2 k = Z
 div2_zero Z prf = refl
 div2_zero (S Z) prf = refl
 div2_zero (S (S k)) prf = (FalseElim (trueNotFalse (sym prf)))
 
-div2o_div2 : (n : Nat) -> div2o n = div2 n
-div2o_div2 n = {--}?div2o_div2_rhs
-
 mul2 : Nat -> Nat
 mul2 Z = 0
 mul2 (S k) = (S (S (mul2 k)))
-
-mul2o : Nat -> Nat
-mul2o n = n * 2
-
-mul2o_mul2 : (n : Nat) -> mul2o n = mul2 n
-mul2o_mul2 Z = refl
-mul2o_mul2 (S k) = cong {f=S} $ cong {f=S} $ mul2o_mul2 k
 
 mul2_n_zero : (n : Nat) -> (mul2 n = Z) -> n = Z
 mul2_n_zero Z prf = refl
@@ -367,9 +354,6 @@ mul2_n_zero (S k) prf = FalseElim $ OnotS (sym prf)
 
 mul2_zero_n : (n : Nat) -> n = Z -> mul2 n = Z
 mul2_zero_n n prf = rewrite prf in refl
-
--- mul2o_zero_n : (n : Nat) -> n = Z -> mul2o n = Z
--- mul2o_zero_n n prf = rewrite prf in refl
 
 mutual
   even : Nat -> Bool
@@ -429,31 +413,6 @@ bitsToNatLe (v :: l) = (if v then 1 else 0) + (mul2 $ bitsToNatLe l)
 
 
 
-bitsToNatLeO : Vect k Bool -> Nat
-bitsToNatLeO [] = Z
-bitsToNatLeO (v :: l) = (if v then 1 else 0) + (mul2o $ bitsToNatLeO l)
-
-btnlo : (v : Vect k Bool) -> bitsToNatLeO v = bitsToNatLe v
-btnlo [] = refl
-btnlo (x :: xs) = rewrite (mul2o_mul2 (bitsToNatLeO xs)) in
-  rewrite (btnlo xs) in refl
-
-natToBitsLeO : (k : Nat) -> Nat -> Maybe (Vect k Bool)
-natToBitsLeO bits Z = Just $ replicate bits False
-natToBitsLeO Z n = Nothing
-natToBitsLeO (S bits) n = do
-  next <- natToBitsLeO bits (div2o n)
-  return $ odd n :: next
-
-ntblo : (k : Nat) -> (n : Nat) -> natToBitsLeO k n = natToBitsLe k n
-ntblo Z Z = refl
-ntblo Z (S k) = refl
-ntblo (S k) Z = refl
-ntblo (S k) (S j) = rewrite (div2o_div2 (S j)) in
-  rewrite (ntblo k (div2 (S j))) in refl
-
-
-
 btnl_zero_step : (xs : Vect k Bool) -> (bitsToNatLe (False :: xs) = Z) -> bitsToNatLe xs = Z
 btnl_zero_step xs prf = mul2_n_zero (bitsToNatLe xs) $
   replace {P=(\x => 0 + x = Z)} (plusZeroLeftNeutral (mul2 $ bitsToNatLe xs)) prf
@@ -498,11 +457,6 @@ ntbl_btnl (S n) (x :: xs) with (inspect $ bitsToNatLe xs)
       match True {eq=eq1} => rewrite eq1 in (ntbl_step_true n xs (ntbl_btnl n xs))
       match False {eq=eq1} => rewrite eq1 in (ntbl_step_false n xs (ntbl_btnl n xs))
 
-ntblo_btnlo : (k : Nat) -> (v : Vect k Bool) -> natToBitsLeO k (bitsToNatLeO v) = Just v
-ntblo_btnlo k v = rewrite (btnlo v) in
-  rewrite (ntblo k (bitsToNatLe v)) in
-    ntbl_btnl k v
-
 
 btnl_rep_false : (k : Nat) -> bitsToNatLe (replicate k False) = Z
 btnl_rep_false Z = refl
@@ -523,12 +477,6 @@ btnl_ntbl (S k) (S j) with (inspect $ natToBitsLe k (div2 (S j)))
     match False {eq=eq1} => rewrite eq1 in
       mul2_div2_eq (bitsToNatLe xs) (S j) (replace {P=(\p => even (S j) = not p)} eq1 (even_inv j)) $
         replace {P=(\p => maybe T ((\x => bitsToNatLe x = div2 (S j))) p)} eq (btnl_ntbl k (div2 $ S j))
-
-btnl_ntblo : (k, n : Nat) -> maybe T (\x => bitsToNatLeO x = n) $ natToBitsLeO k n
-btnl_ntblo k n = rewrite (ntblo k n) in case (inspect $ natToBitsLe k n) of
-  match Nothing {eq=eq} => rewrite eq in tt
-  match (Just v) {eq=eq} => rewrite eq in rewrite (btnlo v) in case (btnl_ntbl k n) of
-    c => replace {P=(\p => maybe T (\x => bitsToNatLe x = n) p)} eq c
 
 natBitsLeIso : (k : Nat) -> PartIso Nat (Vect k Bool)
 natBitsLeIso k = MkPartIso (natToBitsLe k) (Just . bitsToNatLe) ?tf ?ft
@@ -578,3 +526,56 @@ test = (val 1) <*> item
 
 -- partial foldl : PartIso (a, b) a -> PartIso (a, List b) a
 -- foldl i = ipc_inverse unit . (pTup pId (ipc_inverse nil)) . iterate (step i)
+
+
+
+-- optimization for nats, but it doesn't really work anyway
+
+-- div2o : Nat -> Nat
+-- div2o n = div n 2
+
+-- div2o_div2 : (n : Nat) -> div2o n = div2 n
+-- div2o_div2 Z = {--}?div2o_div2_rhs_1
+-- div2o_div2 (S Z) = {--}?div2o_div2_rhs_3
+-- div2o_div2 (S (S k)) = {--}?div2o_div2_rhs_4
+
+-- mul2o : Nat -> Nat
+-- mul2o n = n * 2
+
+-- mul2o_mul2 : (n : Nat) -> mul2o n = mul2 n
+-- mul2o_mul2 Z = refl
+-- mul2o_mul2 (S k) = cong {f=S} $ cong {f=S} $ mul2o_mul2 k
+
+-- bitsToNatLeO : Vect k Bool -> Nat
+-- bitsToNatLeO [] = Z
+-- bitsToNatLeO (v :: l) = (if v then 1 else 0) + (mul2o $ bitsToNatLeO l)
+
+-- btnlo : (v : Vect k Bool) -> bitsToNatLeO v = bitsToNatLe v
+-- btnlo [] = refl
+-- btnlo (x :: xs) = rewrite (mul2o_mul2 (bitsToNatLeO xs)) in
+--   rewrite (btnlo xs) in refl
+
+-- natToBitsLeO : (k : Nat) -> Nat -> Maybe (Vect k Bool)
+-- natToBitsLeO bits Z = Just $ replicate bits False
+-- natToBitsLeO Z n = Nothing
+-- natToBitsLeO (S bits) n = do
+--   next <- natToBitsLeO bits (div2o n)
+--   return $ odd n :: next
+
+-- ntblo : (k : Nat) -> (n : Nat) -> natToBitsLeO k n = natToBitsLe k n
+-- ntblo Z Z = refl
+-- ntblo Z (S k) = refl
+-- ntblo (S k) Z = refl
+-- ntblo (S k) (S j) = rewrite (div2o_div2 (S j)) in
+--   rewrite (ntblo k (div2 (S j))) in refl
+
+-- ntblo_btnlo : (k : Nat) -> (v : Vect k Bool) -> natToBitsLeO k (bitsToNatLeO v) = Just v
+-- ntblo_btnlo k v = rewrite (btnlo v) in
+--   rewrite (ntblo k (bitsToNatLe v)) in
+--     ntbl_btnl k v
+
+-- btnl_ntblo : (k, n : Nat) -> maybe T (\x => bitsToNatLeO x = n) $ natToBitsLeO k n
+-- btnl_ntblo k n = rewrite (ntblo k n) in case (inspect $ natToBitsLe k n) of
+--   match Nothing {eq=eq} => rewrite eq in tt
+--   match (Just v) {eq=eq} => rewrite eq in rewrite (btnlo v) in case (btnl_ntbl k n) of
+--     c => replace {P=(\p => maybe T (\x => bitsToNatLe x = n) p)} eq c
