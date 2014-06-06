@@ -347,22 +347,33 @@ mul2_n_zero : (n : Nat) -> (mul2 n = Z) -> n = Z
 mul2_n_zero Z prf = refl
 mul2_n_zero (S k) prf = FalseElim $ OnotS (sym prf)
 
+mul2_zero_n : (n : Nat) -> n = Z -> mul2 n = Z
+mul2_zero_n n prf = rewrite prf in refl
+
+
 mutual
   even : Nat -> Bool
-  even Z = False
+  even Z = True
   even (S k) = odd k
 
   odd : Nat -> Bool
-  odd Z = True
+  odd Z = False
   odd (S k) = even k
 
-mul2_odd : (n : Nat) -> odd (mul2 n) = True
-mul2_odd Z = refl
-mul2_odd (S k) = (mul2_odd k)
 
-mul2_not_even : (n : Nat) -> even (mul2 n) = False
-mul2_not_even Z = refl
-mul2_not_even (S k) = (mul2_not_even k)
+even_inv : (n : Nat) -> (even (S n) = not (even n))
+even_inv Z = refl
+even_inv (S Z) = refl
+even_inv (S (S k)) = (even_inv k)
+
+
+mul2_even : (n : Nat) -> even (mul2 n) = True
+mul2_even Z = refl
+mul2_even (S k) = (mul2_even k)
+
+mul2_not_odd : (n : Nat) -> odd (mul2 n) = False
+mul2_not_odd Z = refl
+mul2_not_odd (S k) = (mul2_not_odd k)
 
 div2_mul2_n_eq_n : (n : Nat) -> div2 (mul2 n) = n
 div2_mul2_n_eq_n Z = refl
@@ -372,12 +383,27 @@ div2_S_mul2_n_eq_n : (n : Nat) -> div2 (S (mul2 n)) = n
 div2_S_mul2_n_eq_n Z = refl
 div2_S_mul2_n_eq_n (S k) = cong {f=S} $ div2_S_mul2_n_eq_n k
 
+mul2_div2_even : (n : Nat) -> (even n = True) -> mul2 (div2 n) = n
+mul2_div2_even Z prf = refl
+mul2_div2_even (S Z) prf = (FalseElim (trueNotFalse (sym prf)))
+mul2_div2_even (S (S k)) prf = cong {f=S} $ cong {f=S} (mul2_div2_even k prf)
+
+mul2_div2_eq : (n, m : Nat) -> (even m = True) -> (n = div2 m) -> mul2 n = m
+mul2_div2_eq n m evp eqp = rewrite eqp in (mul2_div2_even m evp)
+
+div2_S_even : (n : Nat) -> (even n = True) -> div2 (S n) = div2 n
+div2_S_even Z prf = refl
+div2_S_even (S Z) prf = (FalseElim (trueNotFalse (sym prf)))
+div2_S_even (S (S k)) prf = cong {f=S} (div2_S_even k prf)
+
+
+
 natToBitsLe : (k : Nat) -> Nat -> Maybe (Vect k Bool)
 natToBitsLe bits Z = Just $ replicate bits False
 natToBitsLe Z n = Nothing
 natToBitsLe (S bits) n = do
   next <- natToBitsLe bits (div2 n)
-  return $ even n :: next
+  return $ odd n :: next
 
 bitsToNatLe : Vect k Bool -> Nat
 bitsToNatLe [] = Z
@@ -409,12 +435,12 @@ ntbl_step_false x xs prf with (bitsToNatLe xs)
   | Z = rewrite (ntbl_zero x xs prf) in refl
   | S m = rewrite (div2_mul2_n_eq_n (S m)) in
     rewrite prf in
-      rewrite (mul2_not_even m) in refl
+      rewrite (mul2_not_odd m) in refl
 
 ntbl_step_true : (n : Nat) -> (xs : Vect n Bool) ->
   natToBitsLe n (bitsToNatLe xs) = Just xs ->
   natToBitsLe (S n) (S (mul2 (bitsToNatLe xs))) = Just (True :: xs)  
-ntbl_step_true n xs prf = rewrite (mul2_odd (bitsToNatLe xs)) in
+ntbl_step_true n xs prf = rewrite (mul2_even (bitsToNatLe xs)) in
   rewrite (div2_S_mul2_n_eq_n (bitsToNatLe xs)) in
     rewrite prf in refl
 
@@ -429,9 +455,26 @@ ntbl_btnl (S n) (x :: xs) with (inspect $ bitsToNatLe xs)
       match True {eq=eq1} => rewrite eq1 in (ntbl_step_true n xs (ntbl_btnl n xs))
       match False {eq=eq1} => rewrite eq1 in (ntbl_step_false n xs (ntbl_btnl n xs))
 
--- bitsToNatLe xs = S m
--- natToBitsLe (S n) (mul2 (bitsToNatLe xs)) = Just (False :: xs)
--- mv2 : natToBitsLe (S n) (S (S (S (mul2 m)))) = Just (True :: xs)
+
+btnl_rep_false : (k : Nat) -> bitsToNatLe (replicate k False) = Z
+btnl_rep_false Z = refl
+btnl_rep_false (S k) = (mul2_zero_n (bitsToNatLe (replicate k False)) (btnl_rep_false k))
+
+
+btnl_ntbl : (k, n : Nat) -> maybe T (\x => bitsToNatLe x = n) $ natToBitsLe k n
+btnl_ntbl k Z = (btnl_rep_false k)
+btnl_ntbl Z (S j) = tt
+btnl_ntbl (S k) (S j) with (inspect $ natToBitsLe k (div2 (S j)))
+  | match Nothing {eq=eq} = rewrite eq in tt
+  | match (Just xs) {eq=eq} = rewrite eq in case (inspect $ even j) of
+    match True {eq=eq1} => rewrite eq1 in cong {f=S} $ 
+      mul2_div2_eq (bitsToNatLe xs) j eq1 $ 
+        replace {P=(\p => maybe T (\x => bitsToNatLe x = div2 j) p)}
+          (replace {P=(\p => natToBitsLe k p = Just xs)} (div2_S_even j eq1) eq)
+          (btnl_ntbl k (div2 j))
+    match False {eq=eq1} => rewrite eq1 in
+      mul2_div2_eq (bitsToNatLe xs) (S j) (replace {P=(\p => even (S j) = not p)} eq1 (even_inv j)) $
+        replace {P=(\p => maybe T ((\x => bitsToNatLe x = div2 (S j))) p)} eq (btnl_ntbl k (div2 $ S j))
 
 
 natBitsLeIso : (k : Nat) -> PartIso Nat (Vect k Bool)
