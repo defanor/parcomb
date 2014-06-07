@@ -314,21 +314,21 @@ many p = (cons <$> (p <*> (many p)))
 data Endianness = BE | LE
 
 order : Endianness -> Vect n Bool -> Vect n Bool
-order BE = reverse
-order LE = id
+order e v = reverse v
+order LE v = v
 
-natToBits : Nat -> Endianness -> (k : Nat) -> Vect k Bool
-natToBits n e v = order e $ natToBits' n v
-  where natToBits' : Nat -> (k : Nat) -> Vect k Bool
-        natToBits' n Z = []
-        natToBits' Z bits = replicate bits False
-        natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
+-- natToBits : Nat -> Endianness -> (k : Nat) -> Vect k Bool
+-- natToBits n e v = order e $ natToBits' n v
+--   where natToBits' : Nat -> (k : Nat) -> Vect k Bool
+--         natToBits' n Z = []
+--         natToBits' Z bits = replicate bits False
+--         natToBits' n (S bits) = (mod n 2 /= Z) :: natToBits' (div n 2) bits
 
-bitsToNat : Vect n Bool -> Endianness -> Nat
-bitsToNat v e = bitsToNat' (order e v)
-  where bitsToNat' : Vect k Bool -> Nat
-        bitsToNat' [] = Z
-        bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
+-- bitsToNat : Vect n Bool -> Endianness -> Nat
+-- bitsToNat v e = bitsToNat' (order e v)
+--   where bitsToNat' : Vect k Bool -> Nat
+--         bitsToNat' [] = Z
+--         bitsToNat' (v :: l) = (if v then 1 else 0) + 2 * bitsToNat' l
         
 div2 : Nat -> Nat
 div2 Z = 0
@@ -478,9 +478,40 @@ btnl_ntbl (S k) (S j) with (inspect $ natToBitsLe k (div2 (S j)))
       mul2_div2_eq (bitsToNatLe xs) (S j) (replace {P=(\p => even (S j) = not p)} eq1 (even_inv j)) $
         replace {P=(\p => maybe T ((\x => bitsToNatLe x = div2 (S j))) p)} eq (btnl_ntbl k (div2 $ S j))
 
-natBitsLeIso : (k : Nat) -> PartIso Nat (Vect k Bool)
-natBitsLeIso k = MkPartIso (natToBitsLe k) (Just . bitsToNatLe) ?tf ?ft
+just_btnl_ntbl : (k, n : Nat) -> maybe T (\x => Just (bitsToNatLe x) = Just n) $ natToBitsLe k n
+just_btnl_ntbl k n with (inspect $ natToBitsLe k n)
+      | match Nothing {eq=eq} = rewrite eq in tt
+      | match (Just v) {eq=eq} = rewrite eq in cong {f=Just} $ case (btnl_ntbl k n) of
+        wojust => replace eq wojust
 
+
+natBitsLeIso : (k : Nat) -> PartIso (Vect k Bool) Nat
+natBitsLeIso k = MkPartIso (Just . bitsToNatLe) (natToBitsLe k) tf ft
+  where
+    tf n = just_btnl_ntbl k n
+    ft v  = ntbl_btnl k v
+
+
+natLe : Syntax d Bool => (k : Nat) -> d Nat Bool
+natLe k = natBitsLeIso k <$> rep k item
+
+
+
+-- natToBits : Nat -> Endianness -> (k : Nat) -> Maybe (Vect k Bool)
+-- natToBits n e v = natToBitsLe v n >>= Just . order e
+
+-- bitsToNat : Vect n Bool -> Endianness -> Maybe Nat
+-- bitsToNat v e = Just $ bitsToNatLe (order e v)
+
+-- double_reverse : (v : Vect n a) -> reverse (reverse v) = v
+-- double_reverse [] = refl
+-- double_reverse (x :: xs) = {--}?double_reverse_rhs_2
+
+-- btn_ntb : (k, n : Nat) -> (e : Endianness) -> maybe T (\x => bitsToNat x = Just n) $ natToBits k e n
+-- btn_ntb k n BE = {--}?btn_ntb_rhs_1
+-- btn_ntb k n LE = {-just_btnl_ntbl-}?btn_ntb_rhs_4
+
+-- natBitsIso : (k : Nat) -> PartIso Nat (Vect k Bool)
 
 
 
@@ -504,6 +535,11 @@ test = (val 1) <*> item
 -- partial test3 : Syntax d Bool => d (Bool, List Nat) Bool
 -- test3 = (val True) <*> ((ignore False <$> item) *> (many $ nat BE 4))
 --     <|> (val False) <*> ((ignore True <$> item) *> (many $ nat LE 3))
+
+test4 : Syntax d Bool => d (Nat, Bool) Bool
+test4 = (natLe 4) <*> (val True)
+    <|> (natLe 2) <*> (val False)
+
 
 -- -- compose test3 (False, [1,2,3])
 -- -- parse test3 [False, True, False, False, False, True, False, True, True, False]
