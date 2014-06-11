@@ -3,6 +3,7 @@ module VerifiedInvertible2
 %default total
 %hide Prelude.Algebra.(<*>)
 %hide Prelude.Applicative.(<|>)
+%hide Prelude.Vect.reverse
 
 -- http://www.informatik.uni-marburg.de/~rendel/unparse/
 
@@ -313,9 +314,30 @@ many p = (cons <$> (p <*> (many p)))
 
 data Endianness = BE | LE
 
+snoc : {n : Nat} -> {a : Type} -> (x : a) -> Vect n a -> Vect (S n) a
+snoc x [] = [x]
+snoc x (y :: xs) = (y :: snoc x xs)
+
+reverse : {n : Nat} -> Vect n a -> Vect n a
+reverse [] = []
+reverse (x :: xs) = (snoc x (reverse xs))
+
+reverse_snoc : {a : Type} -> {n : Nat} -> (x : a) -> (v : Vect n a) -> reverse (snoc x v) = x :: reverse v
+reverse_snoc x [] = refl
+reverse_snoc x (y :: xs) = rewrite (reverse_snoc x xs) in refl
+
+double_reverse : (v : Vect n a) -> reverse (reverse v) = v
+double_reverse [] = refl
+double_reverse (x :: xs) = rewrite (reverse_snoc x (reverse xs)) in
+  rewrite (double_reverse xs) in refl
+
 order : Endianness -> Vect n Bool -> Vect n Bool
-order e v = reverse v
+order BE v = reverse v
 order LE v = v
+
+double_order : (e : Endianness) -> (v : Vect n Bool) -> order e (order e v) = v
+double_order BE v = (double_reverse v)
+double_order LE v = refl
 
 -- natToBits : Nat -> Endianness -> (k : Nat) -> Vect k Bool
 -- natToBits n e v = order e $ natToBits' n v
@@ -497,19 +519,19 @@ natLe k = natBitsLeIso k <$> rep k item
 
 
 
--- natToBits : Nat -> Endianness -> (k : Nat) -> Maybe (Vect k Bool)
--- natToBits n e v = natToBitsLe v n >>= Just . order e
+natToBits : Nat -> Endianness -> (k : Nat) -> Maybe (Vect k Bool)
+natToBits n e v = natToBitsLe v n >>= Just . order e
 
--- bitsToNat : Vect n Bool -> Endianness -> Maybe Nat
--- bitsToNat v e = Just $ bitsToNatLe (order e v)
+bitsToNat : Vect n Bool -> Endianness -> Maybe Nat
+bitsToNat v e = Just $ bitsToNatLe (order e v)
 
--- double_reverse : (v : Vect n a) -> reverse (reverse v) = v
--- double_reverse [] = refl
--- double_reverse (x :: xs) = {--}?double_reverse_rhs_2
+btn_ntb : (k, n : Nat) -> (e : Endianness) -> maybe T (\x => bitsToNat x e = Just n) $ natToBits n e k
+btn_ntb k n e with (inspect $ natToBitsLe k n)
+  | match Nothing {eq=eq} = rewrite eq in tt
+  | match (Just as) {eq=eq} = rewrite eq in rewrite (double_order e as) in
+    cong {f=Just} (replace eq {P=(\y => maybe T (\x => bitsToNatLe x = n) y)} (btnl_ntbl k n))
 
--- btn_ntb : (k, n : Nat) -> (e : Endianness) -> maybe T (\x => bitsToNat x = Just n) $ natToBits k e n
--- btn_ntb k n BE = {--}?btn_ntb_rhs_1
--- btn_ntb k n LE = {-just_btnl_ntbl-}?btn_ntb_rhs_4
+
 
 -- natBitsIso : (k : Nat) -> PartIso Nat (Vect k Bool)
 
