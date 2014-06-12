@@ -507,41 +507,41 @@ just_btnl_ntbl k n with (inspect $ natToBitsLe k n)
         wojust => replace eq wojust
 
 
-natBitsLeIso : (k : Nat) -> PartIso (Vect k Bool) Nat
-natBitsLeIso k = MkPartIso (Just . bitsToNatLe) (natToBitsLe k) tf ft
+natLeIso : (k : Nat) -> PartIso (Vect k Bool) Nat
+natLeIso k = MkPartIso (Just . bitsToNatLe) (natToBitsLe k) tf ft
   where
     tf n = just_btnl_ntbl k n
-    ft v  = ntbl_btnl k v
+    ft v = ntbl_btnl k v
 
 
 natLe : Syntax d Bool => (k : Nat) -> d Nat Bool
-natLe k = natBitsLeIso k <$> rep k item
+natLe k = natLeIso k <$> rep k item
 
+natToBits : Endianness -> (k : Nat) -> Nat -> Maybe (Vect k Bool)
+natToBits e k n = natToBitsLe k n >>= Just . order e
 
+bitsToNat : Endianness -> Vect n Bool -> Maybe Nat
+bitsToNat e v = Just $ bitsToNatLe (order e v)
 
-natToBits : Nat -> Endianness -> (k : Nat) -> Maybe (Vect k Bool)
-natToBits n e v = natToBitsLe v n >>= Just . order e
-
-bitsToNat : Vect n Bool -> Endianness -> Maybe Nat
-bitsToNat v e = Just $ bitsToNatLe (order e v)
-
-btn_ntb : (k, n : Nat) -> (e : Endianness) -> maybe T (\x => bitsToNat x e = Just n) $ natToBits n e k
+btn_ntb : (k, n : Nat) -> (e : Endianness) -> maybe T (\x => bitsToNat e x = Just n) $ natToBits e k n
 btn_ntb k n e with (inspect $ natToBitsLe k n)
   | match Nothing {eq=eq} = rewrite eq in tt
   | match (Just as) {eq=eq} = rewrite eq in rewrite (double_order e as) in
     cong {f=Just} (replace eq {P=(\y => maybe T (\x => bitsToNatLe x = n) y)} (btnl_ntbl k n))
 
+ntb_btn : (k : Nat) -> (e : Endianness) -> (v : Vect k Bool) ->
+  maybe T (\x => natToBits e k x = Just v) $ bitsToNat e v
+ntb_btn k e v = rewrite (ntbl_btnl k (order e v)) in rewrite (double_order e v) in refl
 
 
--- natBitsIso : (k : Nat) -> PartIso Nat (Vect k Bool)
+natIso : (e : Endianness) -> (k : Nat) -> PartIso (Vect k Bool) Nat
+natIso e k = MkPartIso (bitsToNat e) (natToBits e k) tf ft
+  where
+    tf n = (btn_ntb k n e)
+    ft v = (ntb_btn k e v)
 
-
-
--- nat : Syntax d Bool => Endianness -> Nat -> d Nat Bool
--- nat endianness size = MkPartIso pf cf <$> rep size item
---   where
---     pf l = Just $ bitsToNat l endianness
---     cf x = Just $ natToBits x endianness size
+nat : Syntax d Bool => Endianness -> Nat -> d Nat Bool
+nat endianness size = natIso endianness size <$> rep size item
 
 
 -- testing
@@ -550,21 +550,21 @@ test : Syntax d Nat => d (Nat, Nat) Nat
 test = (val 1) <*> item
    <|> (val 2) <*> (val 3)
 
--- test2 : Syntax d Bool => d (Nat, Bool) Bool
--- test2 = (nat BE 4) <*> (val True)
---     <|> (nat BE 2) <*> (val False)
+test2 : Syntax d Bool => d (Nat, Bool) Bool
+test2 = (nat BE 4) <*> (val True)
+    <|> (nat BE 2) <*> (val False)
 
--- partial test3 : Syntax d Bool => d (Bool, List Nat) Bool
--- test3 = (val True) <*> ((ignore False <$> item) *> (many $ nat BE 4))
---     <|> (val False) <*> ((ignore True <$> item) *> (many $ nat LE 3))
+partial test3 : Syntax d Bool => d (Bool, List Nat) Bool
+test3 = (val True) <*> ((ignore False <$> item) *> (many $ nat BE 4))
+    <|> (val False) <*> ((ignore True <$> item) *> (many $ nat LE 3))
 
 test4 : Syntax d Bool => d (Nat, Bool) Bool
 test4 = (natLe 4) <*> (val True)
     <|> (natLe 2) <*> (val False)
 
 
--- -- compose test3 (False, [1,2,3])
--- -- parse test3 [False, True, False, False, False, True, False, True, True, False]
+-- compose test3 (False, [1,2,3])
+-- parse test3 [False, True, False, False, False, True, False, True, True, False]
 
 
 -- -- foldl
