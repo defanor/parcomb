@@ -1,5 +1,4 @@
-# Verified Invertible Syntax Descriptions #
-
+# ISD with some verification #
 
 An Idris implementation of
 [Invertible syntax descriptions](http://www.informatik.uni-marburg.de/~rendel/unparse/),
