@@ -1,76 +1,41 @@
-parcomb
-=======
-
-Playing with parsing in Idris.
-
-The ultimate goal is to get handy and verified (easily verifiable)
-parser/printer combinators (allowing to use a single structure
-definition for both directions), suitable for parsing of both binary
-and textual network protocols and file formats.
-
-Currently working on VerifiedInvertible2, which seems most promising.
+# Verified Invertible Syntax Descriptions #
 
 
-## Parcomb ##
-
-Toy parser combinators.
-
-
-## Pack ##
-
-Binary (`List Bool` for now, actually) pack/unpack, inspired by those
-of Perl. Uses the same structure definition for both directions.
-
-
-## Invertible ##
-
-An attempt to rewrite
-[Invertible syntax descriptions](http://www.informatik.uni-marburg.de/~rendel/unparse/)
-in Idris, and to try to make it usable afterwards.
-
-The following changes were made:
-
-1. `String` was replaced with `List γ` in order to make it more general
-2. `many` is implemented with an upper bound argument, which is not
-   that nice
-
-
-## InvParComb ##
-
-A messy mix of the above.
-
-
-## InvParComb2 ##
-
-A fork of Invertible: cleaner, with necessary laziness and nicer
-`many`, and using Maybe instead of List.
-
-
-## VerifiedInvertible ##
-
-InvParComb2 with verified partial isomorphisms, except for `ignore`:
+An Idris implementation of
+[Invertible syntax descriptions](http://www.informatik.uni-marburg.de/~rendel/unparse/),
+with verified partial isomorphisms:
 
     data PartIso : Type -> Type -> Type where
       MkPartIso : (to : a -> Maybe b) ->
                   (from : b -> Maybe a) ->
-                  (toFrom : (y : b) -> maybe T (\x => x = y) (from y >>= to)) ->
-                  (fromTo : (x : a) -> maybe T (\y => y = x) (to x >>= from)) ->
+                  (toFrom : (y : b) -> maybe () (\x => to x = Just y) (from y)) ->
+                  (fromTo : (x : a) -> maybe () (\y => from y = Just x) (to x)) ->
                   PartIso a b
 
-`toFrom` and `fromTo` may be stronger here: for now they just say that
-there could not be wrong results, if those results are not errors, but
-there's no warranty that it'll be able to parse whatever it composed
-and vice versa.
+Targeting binary file formats and network protocols.
 
 
-## VerifiedInvertible2 ##
+## Example ##
 
-VerifiedInvertible, but with more strict properties:
+    test4 : Syntax d Bool => d (Vect 2 Nat, Bool) Bool
+    test4 = rep 2 (nat LE 4) <*> val True
+        <|> rep 2 (nat BE 3) <*> val False
 
-    data PartIso : Type -> Type -> Type where
-      MkPartIso : (to : a -> Maybe b) ->
-                  (from : b -> Maybe a) ->
-                  (toFrom : (y : b) -> maybe T (\x => to x = Just y) (from y)) ->
-                  (fromTo : (x : a) -> maybe T (\y => from y = Just x) (to x)) ->
-                  PartIso a b
 
+    λΠ> compose test4 ([1,2], True)
+    Just [True, False, False, False, False, True, False, False, True] : Maybe (List Bool)
+
+    λΠ> compose test4 ([1,2], False)
+    Just [False, False, True, False, True, False, False] : Maybe (List Bool)
+
+    λΠ> parse test4 [True, False, False, False, False, True, False, False, True]
+    Just ([1, 2], True) : Maybe (Vect 2 Nat, Bool)
+
+    λΠ> parse test4 [False, False, True, False, True, False, False]
+    Just ([1, 2], False) : Maybe (Vect 2 Nat, Bool)
+
+
+## TODO ##
+
+Probably will add more parsers, and it also would be nice to verify
+parse/compose functions somehow.

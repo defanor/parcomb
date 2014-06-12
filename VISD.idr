@@ -10,13 +10,11 @@ module VerifiedInvertible2
 
 -- core definitions
 
-data T = tt
-
 data PartIso : Type -> Type -> Type where
   MkPartIso : (to : a -> Maybe b) ->
               (from : b -> Maybe a) ->
-              (toFrom : (y : b) -> maybe T (\x => to x = Just y) (from y)) ->
-              (fromTo : (x : a) -> maybe T (\y => from y = Just x) (to x)) ->
+              (toFrom : (y : b) -> maybe () (\x => to x = Just y) (from y)) ->
+              (fromTo : (x : a) -> maybe () (\y => from y = Just x) (to x)) ->
               PartIso a b
 
 class PartIsoFunctor (f : Type -> Type -> Type) where
@@ -84,19 +82,19 @@ pId = MkPartIso (\x => Just x) (\x => Just x) (\x => refl) (\x => refl)
     tf ft
   where
     tf y with (inspect $ (gFrom y))
-      | match Nothing {eq} = rewrite eq in tt
+      | match Nothing {eq} = rewrite eq in ()
       | match (Just z) {eq} = rewrite eq in case (inspect $ fFrom z) of
-        match Nothing {eq=eq1} => rewrite eq1 in tt
+        match Nothing {eq=eq1} => rewrite eq1 in ()
         match (Just n) {eq=eq1} => rewrite eq1 in
-          rewrite (replace eq1 {P=(\pz => maybe T (\x => fTo x = Just z) pz)} (fTF z)) in
-            (replace eq {P=(\py => maybe T (\x => gTo x = Just y) py)} (gTF y))
+          rewrite (replace eq1 {P=(\pz => maybe () (\x => fTo x = Just z) pz)} (fTF z)) in
+            (replace eq {P=(\py => maybe () (\x => gTo x = Just y) py)} (gTF y))
     ft x with (inspect $ (fTo x))
-      | match Nothing {eq} = rewrite eq in tt
+      | match Nothing {eq} = rewrite eq in ()
       | match (Just z) {eq} = rewrite eq in case (inspect $ gTo z) of
-        match Nothing {eq=eq1} => rewrite eq1 in tt
+        match Nothing {eq=eq1} => rewrite eq1 in ()
         match (Just n) {eq=eq1} => rewrite eq1 in
-          rewrite (replace eq1 {P=(\pz => maybe T (\x => gFrom x = Just z) pz)} (gFT z)) in
-            (replace eq {P=(\py => maybe T (\y => fFrom y = Just x) py)} (fFT x))
+          rewrite (replace eq1 {P=(\pz => maybe () (\x => gFrom x = Just z) pz)} (gFT z)) in
+            (replace eq {P=(\py => maybe () (\y => fFrom y = Just x) py)} (fFT x))
 
 -- pTup : PartIso a b -> PartIso c d -> PartIso (a, c) (b, d)
 -- pTup i j = MkPartIso f g where
@@ -241,7 +239,7 @@ sat {a} p = (MkPartIso check check verify verify) <$> item
     check : a -> Maybe a
     check x = if p x then Just x else Nothing
     verify y with (inspect $ p y)
-      | match False {eq=eq} = rewrite eq in tt
+      | match False {eq=eq} = rewrite eq in ()
       | match True {eq=eq} = rewrite eq in
         rewrite eq in refl
 
@@ -288,7 +286,7 @@ nil = MkPartIso c1 c2 tf ft
     c2 [] = Just ()
     c2 (x :: xs) = Nothing
     tf [] = refl
-    tf (x :: xs) = tt
+    tf (x :: xs) = ()
     ft () = refl
 
 cons : PartIso (a, List a) (List a)
@@ -299,7 +297,7 @@ cons = MkPartIso c1 c2 tf ft
     c2 : List a -> Maybe (a, List a)
     c2 [] = Nothing
     c2 (x :: xs) = Just (x, xs)
-    tf [] = tt
+    tf [] = ()
     tf (x :: xs) = refl
     ft (x, l) = refl
 
@@ -485,24 +483,24 @@ btnl_rep_false Z = refl
 btnl_rep_false (S k) = (mul2_zero_n (bitsToNatLe (replicate k False)) (btnl_rep_false k))
 
 
-btnl_ntbl : (k, n : Nat) -> maybe T (\x => bitsToNatLe x = n) $ natToBitsLe k n
+btnl_ntbl : (k, n : Nat) -> maybe () (\x => bitsToNatLe x = n) $ natToBitsLe k n
 btnl_ntbl k Z = (btnl_rep_false k)
-btnl_ntbl Z (S j) = tt
+btnl_ntbl Z (S j) = ()
 btnl_ntbl (S k) (S j) with (inspect $ natToBitsLe k (div2 (S j)))
-  | match Nothing {eq=eq} = rewrite eq in tt
+  | match Nothing {eq=eq} = rewrite eq in ()
   | match (Just xs) {eq=eq} = rewrite eq in case (inspect $ even j) of
     match True {eq=eq1} => rewrite eq1 in cong {f=S} $ 
       mul2_div2_eq (bitsToNatLe xs) j eq1 $ 
-        replace {P=(\p => maybe T (\x => bitsToNatLe x = div2 j) p)}
+        replace {P=(\p => maybe () (\x => bitsToNatLe x = div2 j) p)}
           (replace {P=(\p => natToBitsLe k p = Just xs)} (div2_S_even j eq1) eq)
           (btnl_ntbl k (div2 j))
     match False {eq=eq1} => rewrite eq1 in
       mul2_div2_eq (bitsToNatLe xs) (S j) (replace {P=(\p => even (S j) = not p)} eq1 (even_inv j)) $
-        replace {P=(\p => maybe T ((\x => bitsToNatLe x = div2 (S j))) p)} eq (btnl_ntbl k (div2 $ S j))
+        replace {P=(\p => maybe () ((\x => bitsToNatLe x = div2 (S j))) p)} eq (btnl_ntbl k (div2 $ S j))
 
-just_btnl_ntbl : (k, n : Nat) -> maybe T (\x => Just (bitsToNatLe x) = Just n) $ natToBitsLe k n
+just_btnl_ntbl : (k, n : Nat) -> maybe () (\x => Just (bitsToNatLe x) = Just n) $ natToBitsLe k n
 just_btnl_ntbl k n with (inspect $ natToBitsLe k n)
-      | match Nothing {eq=eq} = rewrite eq in tt
+      | match Nothing {eq=eq} = rewrite eq in ()
       | match (Just v) {eq=eq} = rewrite eq in cong {f=Just} $ case (btnl_ntbl k n) of
         wojust => replace eq wojust
 
@@ -523,14 +521,14 @@ natToBits e k n = natToBitsLe k n >>= Just . order e
 bitsToNat : Endianness -> Vect n Bool -> Maybe Nat
 bitsToNat e v = Just $ bitsToNatLe (order e v)
 
-btn_ntb : (k, n : Nat) -> (e : Endianness) -> maybe T (\x => bitsToNat e x = Just n) $ natToBits e k n
+btn_ntb : (k, n : Nat) -> (e : Endianness) -> maybe () (\x => bitsToNat e x = Just n) $ natToBits e k n
 btn_ntb k n e with (inspect $ natToBitsLe k n)
-  | match Nothing {eq=eq} = rewrite eq in tt
+  | match Nothing {eq=eq} = rewrite eq in ()
   | match (Just as) {eq=eq} = rewrite eq in rewrite (double_order e as) in
-    cong {f=Just} (replace eq {P=(\y => maybe T (\x => bitsToNatLe x = n) y)} (btnl_ntbl k n))
+    cong {f=Just} (replace eq {P=(\y => maybe () (\x => bitsToNatLe x = n) y)} (btnl_ntbl k n))
 
 ntb_btn : (k : Nat) -> (e : Endianness) -> (v : Vect k Bool) ->
-  maybe T (\x => natToBits e k x = Just v) $ bitsToNat e v
+  maybe () (\x => natToBits e k x = Just v) $ bitsToNat e v
 ntb_btn k e v = rewrite (ntbl_btnl k (order e v)) in rewrite (double_order e v) in refl
 
 
@@ -558,9 +556,9 @@ partial test3 : Syntax d Bool => d (Bool, List Nat) Bool
 test3 = (val True) <*> ((ignore False <$> item) *> (many $ nat BE 4))
     <|> (val False) <*> ((ignore True <$> item) *> (many $ nat LE 3))
 
-test4 : Syntax d Bool => d (Nat, Bool) Bool
-test4 = (natLe 4) <*> (val True)
-    <|> (natLe 2) <*> (val False)
+test4 : Syntax d Bool => d (Vect 2 Nat, Bool) Bool
+test4 = rep 2 (nat LE 4) <*> val True
+    <|> rep 2 (nat BE 3) <*> val False
 
 
 -- compose test3 (False, [1,2,3])
@@ -632,8 +630,8 @@ test4 = (natLe 4) <*> (val True)
 --   rewrite (ntblo k (bitsToNatLe v)) in
 --     ntbl_btnl k v
 
--- btnl_ntblo : (k, n : Nat) -> maybe T (\x => bitsToNatLeO x = n) $ natToBitsLeO k n
+-- btnl_ntblo : (k, n : Nat) -> maybe () (\x => bitsToNatLeO x = n) $ natToBitsLeO k n
 -- btnl_ntblo k n = rewrite (ntblo k n) in case (inspect $ natToBitsLe k n) of
 --   match Nothing {eq=eq} => rewrite eq in tt
 --   match (Just v) {eq=eq} => rewrite eq in rewrite (btnlo v) in case (btnl_ntbl k n) of
---     c => replace {P=(\p => maybe T (\x => bitsToNatLe x = n) p)} eq c
+--     c => replace {P=(\p => maybe () (\x => bitsToNatLe x = n) p)} eq c
