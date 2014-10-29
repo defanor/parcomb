@@ -1,0 +1,4 @@
+package visd
+
+sourcedir = src
+modules = VISD.Common, VISD.Binary
