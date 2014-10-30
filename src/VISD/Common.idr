@@ -1,5 +1,8 @@
 module VISD.Common
 
+import Control.Isomorphism
+import Data.BoundedList
+
 %logging 1
 %default total
 %hide Prelude.Algebra.(<*>)
@@ -75,8 +78,9 @@ f >=> g = \x => f x >>= g
 pId : PartIso a a
 pId = MkPartIso (\x => Just x) (\x => Just x) (\x => Refl) (\x => Refl)
 
-(.) : PartIso b c -> PartIso a b -> PartIso a c
-(MkPartIso gTo gFrom gTF gFT) . (MkPartIso fTo fFrom fTF fFT) =
+infixl 9 ..
+(..) : PartIso b c -> PartIso a b -> PartIso a c
+(MkPartIso gTo gFrom gTF gFT) .. (MkPartIso fTo fFrom fTF fFT) =
   MkPartIso
     (ipc_apply (MkPartIso fTo fFrom fTF fFT) >=> ipc_apply (MkPartIso gTo gFrom gTF gFT))
     (ipc_unapply (MkPartIso gTo gFrom gTF gFT) >=> ipc_unapply (MkPartIso fTo fFrom fTF fFT))
@@ -115,7 +119,7 @@ unit = MkPartIso f g tf ft where
 
 infixl 3 *>
 (*>) : Syntax d c => d () c -> d a c -> d a c
-p *> q = ipc_inverse unit . commute <$> p <*> q
+p *> q = ipc_inverse unit .. commute <$> p <*> q
 
 infixl 3 <*
 (<*) : Syntax d c => d a c -> d () c -> d a c
@@ -257,7 +261,6 @@ rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
 rep Z p = nilv <$> pure ()
 rep (S k) p = consv <$> p <*> rep k p
 
-
 -- many
 
 nil : PartIso () (List a)
@@ -287,3 +290,36 @@ cons = MkPartIso c1 c2 tf ft
 partial many : Syntax d c => d a c -> d (List a) c
 many p = (cons <$> (p <*> (many p)))
      <|> (nil <$> pure ())
+
+-- up to
+bNil : PartIso () (BoundedList n a)
+bNil = MkPartIso to from tf ft
+  where
+    to : () -> Maybe (BoundedList n a)
+    to () = Just []
+    from : BoundedList n a -> Maybe ()
+    from [] = Just ()
+    from _ = Nothing
+    tf [] = Refl
+    tf (x::xs) impossible
+    ft () = Refl
+
+bCons : PartIso (a, BoundedList n a) (BoundedList (S n) a)
+bCons = MkPartIso to from tf ft
+  where
+    to : (a, BoundedList n a) -> Maybe (BoundedList (S n) a)
+    to (x, l) = Just $ x :: l
+    from : BoundedList (S n) a -> Maybe (a, BoundedList n a)
+    from [] = Nothing
+    from (x :: xs) = Just (x, xs)
+    tf [] = ()
+    tf (x :: xs) = Refl
+    ft (x, l) = Refl
+
+upTo : Syntax d c => (n: Nat) -> d a c -> d (BoundedList n a) c
+upTo Z _ = (bNil <$> pure ())
+upTo (S n) p = (bCons <$> (p <*> (upTo n p)))
+           <|> (bNil <$> pure ())
+
+bounded : Syntax d c => (min,add: Nat) -> d a c -> d (Vect min a, BoundedList add a) c
+bounded min add p = rep min p <*> upTo add p
