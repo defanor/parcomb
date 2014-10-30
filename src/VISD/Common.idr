@@ -22,7 +22,7 @@ data PartIso : Type -> Type -> Type where
               PartIso a b
 
 class PartIsoFunctor (f : Type -> Type -> Type) where
-  (<$>) : PartIso a b -> (f a c -> f b c)
+  (<$>) : PartIso a b -> f a c -> f b c
 
 class PFunctor (f : Type -> Type -> Type) where
   (<*>) : f a c -> Lazy (f b c) -> f (a, b) c
@@ -261,37 +261,9 @@ rep : Syntax d c => (n : Nat) -> d a c -> d (Vect n a) c
 rep Z p = nilv <$> pure ()
 rep (S k) p = consv <$> p <*> rep k p
 
--- many
-
-nil : PartIso () (List a)
-nil = MkPartIso c1 c2 tf ft
-  where
-    c1 : () -> Maybe (List a)
-    c1 () = Just []
-    c2 : List a -> Maybe ()
-    c2 [] = Just ()
-    c2 (x :: xs) = Nothing
-    tf [] = Refl
-    tf (x :: xs) = ()
-    ft () = Refl
-
-cons : PartIso (a, List a) (List a)
-cons = MkPartIso c1 c2 tf ft
-  where
-    c1 : (a, List a) -> Maybe (List a)
-    c1 (x, l) = Just $ x :: l
-    c2 : List a -> Maybe (a, List a)
-    c2 [] = Nothing
-    c2 (x :: xs) = Just (x, xs)
-    tf [] = ()
-    tf (x :: xs) = Refl
-    ft (x, l) = Refl
-
-partial many : Syntax d c => d a c -> d (List a) c
-many p = (cons <$> (p <*> (many p)))
-     <|> (nil <$> pure ())
 
 -- up to
+
 bNil : PartIso () (BoundedList n a)
 bNil = MkPartIso to from tf ft
   where
@@ -323,3 +295,66 @@ upTo (S n) p = (bCons <$> (p <*> (upTo n p)))
 
 bounded : Syntax d c => (min,add: Nat) -> d a c -> d (Vect min a, BoundedList add a) c
 bounded min add p = rep min p <*> upTo add p
+
+
+-- maybe
+
+just : PartIso a (Maybe a)
+just = MkPartIso (Just . Just) id tf ft
+  where
+    tf Nothing = ()
+    tf (Just x) = Refl
+    ft _ = Refl
+
+nothing : PartIso () (Maybe a)
+nothing = MkPartIso to from tf ft
+  where
+    to : () -> Maybe (Maybe a)
+    to x = Just Nothing
+    from : Maybe a -> Maybe ()
+    from (Just x) = Nothing
+    from Nothing = Just ()
+    tf (Just x) = ()
+    tf Nothing = Refl
+    ft () = Refl
+
+maybe : Syntax d c => d a c -> d (Maybe a) c
+maybe p = (just <$> p)
+      <|> (nothing <$> pure ())
+
+
+-- many
+
+nil : PartIso () (List a)
+nil = MkPartIso c1 c2 tf ft
+  where
+    c1 : () -> Maybe (List a)
+    c1 () = Just []
+    c2 : List a -> Maybe ()
+    c2 [] = Just ()
+    c2 (x :: xs) = Nothing
+    tf [] = Refl
+    tf (x :: xs) = ()
+    ft () = Refl
+
+cons : PartIso (a, List a) (List a)
+cons = MkPartIso c1 c2 tf ft
+  where
+    c1 : (a, List a) -> Maybe (List a)
+    c1 (x, l) = Just $ x :: l
+    c2 : List a -> Maybe (a, List a)
+    c2 [] = Nothing
+    c2 (x :: xs) = Just (x, xs)
+    tf [] = ()
+    tf (x :: xs) = Refl
+    ft (x, l) = Refl
+
+partial many : Syntax d c => d a c -> d (List a) c
+many p = (cons <$> (p <*> (many p)))
+     <|> (nil <$> pure ())
+
+
+-- sepBy1
+
+partial sepBy1 : Syntax d c => d a c -> d b c -> b -> d (List a) c
+sepBy1 p s x = cons <$> (p <*> (many ((ignore x <$> s) *> p)))
