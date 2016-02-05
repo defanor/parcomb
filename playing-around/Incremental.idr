@@ -96,6 +96,8 @@ feed (Failure s) _ = Failure s
 
 -- feed (runParser (manyTill item (sat (== 'v'))) (the (List Char) ['a', 'b'])) ['c', 'v', 'w']
 -- feed (runParser int $ unpack "12") $ unpack "34."
+-- feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f', 'o']) ['o']
+-- feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f', 'o']) ['r']
 
 parseWith : Monad m => m i -> Parser i r -> m (Result i r)
 parseWith r p = do

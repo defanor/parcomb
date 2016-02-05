@@ -72,4 +72,16 @@ VerifiedInvertible, but with more strict properties:
                   (fromTo : (x : a) -> maybe T (\y => from y = Just x) (to x)) ->
                   PartIso a b
 
-It's probably the final version of this "playing around".
+## Incremental ##
+
+Suitable for parsing data transmitted over network.
+
+    λΠ> feed (runParser int $ unpack "12") $ unpack "34."
+    Done ['.'] 1234 : Result (List Char) Int
+    λΠ> feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f', 'o']) ['o']
+    Done [] ['f', 'o', 'o'] : Result (List Char) (List Char)
+    λΠ> feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f', 'o']) ['r']
+    Done [] ['f', 'o', 'r'] : Result (List Char) (List Char)
+
+Also provides a `parseWith` function, akin to that of attoparsec
+(`parseWith : Monad m => m i -> Parser i r -> m (Result i r)`).
