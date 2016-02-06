@@ -1,4 +1,4 @@
-module Main
+module Incremental
 
 mutual
   data Result : (i, r : Type) -> Type where
@@ -27,7 +27,7 @@ implementation Monoid i => Applicative (Parser i) where
       Done i'' r => Done i'' (f' r)
       Partial k => Partial (MkParser $ map f' . runParser k)
       Failure f => Failure f
-    Partial k => Failure "trying to use partial"
+    Partial k => Partial $ k <*> g
     Failure f => Failure f
 
 infixl 2 <*>|
@@ -106,10 +106,10 @@ parseWith r p = do
     Partial k => parseWith r k
     other => pure other
 
-main : IO ()
-main = do
-  r <- parseWith (unpack <$> getLine) int
-  putStrLn $ case r of
-    Done i n => show n ++ " / " ++ pack i
-    Failure s => "Failure: " ++ s
-    _ => "Partial"
+-- main : IO ()
+-- main = do
+--   r <- parseWith (unpack <$> getLine) int
+--   putStrLn $ case r of
+--     Done i n => show n ++ " / " ++ pack i
+--     Failure s => "Failure: " ++ s
+--     _ => "Partial"
