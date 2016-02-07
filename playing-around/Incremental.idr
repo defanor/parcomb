@@ -48,7 +48,10 @@ implementation Monoid i => LazyAlternative (Parser i) where
   empty = MkParser . const $ Failure "an alternative is empty"
   f <|> g = MkParser $ \i => case (runParser f i) of
     Failure _ => runParser g i
-    Partial k => Partial $ MkParser $ \i' => runParser (f <|> g) (i <+> i')
+    Partial k => Partial $
+      let cont = MkParser (\i' => runParser k i');
+          next = MkParser (\i' => runParser g (i <+> i'))
+      in cont <|> next
     done => done
 
 fail : Monoid i => Parser i r
@@ -98,6 +101,9 @@ feed (Failure s) _ = Failure s
 -- feed (runParser int $ unpack "12") $ unpack "34."
 -- feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f', 'o']) ['o']
 -- feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f', 'o']) ['r']
+-- feed (feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f']) ['o']) ['o']
+-- feed (feed (runParser (list ['f', 'o', 'o'] <|> list ['f', 'o', 'r']) ['f']) ['o']) ['r']
+
 
 parseWith : Monad m => m i -> Parser i r -> m (Result i r)
 parseWith r p = do
